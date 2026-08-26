@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Expo Camera Test",
+    "slug": "expo-camera-test",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app requires access to your front camera to test live camera preview."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA"
+      ]
+    }
+  }
+}
