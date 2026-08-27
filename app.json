@@ -3,9 +3,8 @@
     "name": "Expo Camera Test",
     "slug": "expo-camera-test",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -15,7 +14,8 @@
     "android": {
       "permissions": [
         "CAMERA"
-      ]
+      ],
+      "usesCleartextTraffic": true
     }
   }
 }

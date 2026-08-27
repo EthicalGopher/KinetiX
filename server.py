@@ -1,14 +1,17 @@
+#!/home/sankhyahrick/Python/bin/python
+import os
 import base64
 import cv2
 import numpy as np
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-app = FastAPI(title="MediaPipe Real-Time Pose Server")
+app = FastAPI(title="MediaPipe Real-Time Pose & Static Model Server")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,12 +21,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize MediaPipe PoseLandmarker for real-time inference
+# Serve local static MediaPipe model assets over local Wi-Fi
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Initialize MediaPipe PoseLandmarker
 base_options = python.BaseOptions(model_asset_path='pose_landmarker_lite.task')
 options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     running_mode=vision.RunningMode.IMAGE,
-    num_poses=1
+    num_poses=1,
+    min_pose_detection_confidence=0.3,
+    min_pose_presence_confidence=0.3,
+    min_tracking_confidence=0.3,
 )
 landmarker = vision.PoseLandmarker.create_from_options(options)
 
@@ -37,7 +47,7 @@ POSE_CONNECTIONS = [
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "MediaPipe Pose Server is running"}
+    return {"status": "ok", "message": "MediaPipe Server & Static Asset Server Active"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -61,11 +71,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"detected": False, "error": "Invalid frame"})
                 continue
 
-            # Resize to 320x240 for ultra-fast MediaPipe pose inference (~3ms)
-            h, w, _ = frame.shape
-            if w > 320:
-                frame = cv2.resize(frame, (320, int(h * 320 / w)))
-
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
 
@@ -73,7 +78,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
             fps_counter += 1
             now = time.time()
-            current_fps = round(fps_counter / (now - start_time), 1) if (now - start_time) > 0 else 0
+            elapsed = now - start_time
+            current_fps = round(fps_counter / elapsed, 1) if elapsed > 0 else 0.0
 
             landmarks_list = []
             if result.pose_landmarks and len(result.pose_landmarks) > 0:
@@ -82,9 +88,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         "x": float(lm.x),
                         "y": float(lm.y),
                         "z": float(lm.z),
-                        "visibility": float(lm.visibility) if lm.visibility is not None else 1.0
+                        "visibility": float(lm.visibility) if hasattr(lm, 'visibility') and lm.visibility is not None else 1.0
                     })
 
+                print(f"🧍 Frame #{fps_counter} | Pose DETECTED ({len(landmarks_list)} joints) | {current_fps} FPS", end="\r")
                 await websocket.send_json({
                     "detected": True,
                     "landmarks": landmarks_list,
@@ -92,6 +99,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "connections": POSE_CONNECTIONS,
                 })
             else:
+                print(f"🔍 Frame #{fps_counter} | No person detected | {current_fps} FPS", end="\r")
                 await websocket.send_json({
                     "detected": False,
                     "landmarks": [],
@@ -100,9 +108,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
 
     except WebSocketDisconnect:
-        print("Client disconnected")
+        print("\nClient disconnected")
     except Exception as e:
-        print(f"Error processing frame: {e}")
+        print(f"\nError processing frame: {e}")
 
 if __name__ == "__main__":
     import uvicorn

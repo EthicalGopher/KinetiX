@@ -1,47 +1,27 @@
-# Expo On-Device MediaPipe Pose App 📸
+# Expo 100% Standalone Offline MediaPipe AI App 📸
 
-A clean, modern React Native application built with **Expo SDK 54**, **TypeScript**, and **On-Device WebGL MediaPipe AI** running **100% locally on the phone**.
-
----
-
-## 📱 Features
-
-- **100% On-Device Pose AI**: MediaPipe Pose model runs directly inside your phone's GPU via WebGL.
-- **ZERO Backend / ZERO Network Traffic**: No Python server, no WebSockets, no frame sending across Wi-Fi.
-- **Front Selfie Camera**: Uses `navigator.mediaDevices.getUserMedia` at high FPS.
-- **Live 33-Joint Skeleton Rendering**: Draws joint dots & bone lines in real-time.
-- **Expo Go Compatible**: Works out-of-the-box on iOS & Android!
+A modern React Native application built with **Expo SDK 54**, **TypeScript**, and **100% On-Device Standalone WebGL MediaPipe AI**.
 
 ---
 
-## 📁 Project Structure
+## 📱 Standalone Highlights
 
-```
-.
-├── App.tsx                    # Main app entry point managing screen state
-├── app.json                   # Expo configuration
-├── babel.config.js            # Babel preset for Expo
-├── tsconfig.json              # TypeScript configuration
-├── package.json               # Dependencies & scripts
-└── src/
-    └── components/
-        ├── HomeScreen.tsx     # Home Screen with "Test" card UI
-        └── CameraScreen.tsx   # 100% On-Device MediaPipe Pose Camera & Skeleton Overlay
-```
+- **100% Offline & Standalone**: Model JS, WASM binaries, and TFLite model weights are inlined directly into your app package.
+- **ZERO Backend / ZERO Network Traffic**: No Python server, no HTTP asset requests, no WebSockets required!
+- **Auto Hardware Spec Detection & Recommendations**: Uses `expo-device` to detect phone RAM and automatically recommend the optimal model (Light, Medium, or High).
+- **Horizontal Widescreen Layout**: Completely optimized landscape interface for pose tracking.
+- **Expo Go & Native Build Compatible**: Works anywhere offline!
 
 ---
 
 ## 🚀 How to Run
 
-### 1. Start the Expo Development Server
+### 1. Start Expo
 
 ```bash
 npx expo start
 ```
 
-### 2. Open in Expo Go
+### 2. Open Expo Go
 
-1. Open **Expo Go** on your device.
-2. Scan the QR code.
-3. Tap **"Test"** ➔ Front camera opens ➔ Live 33 MediaPipe pose landmarks render on your phone 100% on-device!
-# fitness
+Open **Expo Go** on your device, tap **"Test"** — your app runs **100% offline on-device AI pose tracking**!

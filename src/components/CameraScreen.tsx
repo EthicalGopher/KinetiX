@@ -1,421 +1,402 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
-  ActivityIndicator,
-  TextInput,
-  Modal,
-  LayoutChangeEvent,
 } from 'react-native';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-} from 'react-native-vision-camera';
-import * as FileSystem from 'expo-file-system';
-import Svg, { Line, Circle } from 'react-native-svg';
+import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export type ModelComplexity = 'light' | 'medium' | 'high';
 
 interface CameraScreenProps {
   onClose: () => void;
+  selectedModel: ModelComplexity;
 }
 
-interface Landmark {
-  x: number;
-  y: number;
-  z: number;
-  visibility?: number;
-}
+const SERVER_HOST = 'http://192.168.29.110:8000';
 
-const DEFAULT_SERVER_IP = '192.168.29.110';
-const DEFAULT_SERVER_PORT = '8000';
-
-const POSE_CONNECTIONS: [number, number][] = [
-  [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8], [9, 10],
-  [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
-  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
-  [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28],
-  [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32]
-];
-
-export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose }) => {
-  const [facing, setFacing] = useState<'front' | 'back'>('front');
-  const device = useCameraDevice(facing);
-  const { hasPermission, requestPermission } = useCameraPermission();
-
-  const [serverIp, setServerIp] = useState<string>(DEFAULT_SERVER_IP);
-  const [serverPort, setServerPort] = useState<string>(DEFAULT_SERVER_PORT);
-  const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
-  const [wsConnected, setWsConnected] = useState<boolean>(false);
-  const [isStreaming, setIsStreaming] = useState<boolean>(true);
-  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
-  const [poseDetected, setPoseDetected] = useState<boolean>(false);
-  const [fps, setFps] = useState<number>(0);
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-
-  const cameraRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const isCapturingRef = useRef<boolean>(false);
-  const isMountedRef = useRef<boolean>(true);
-  const isStreamingRef = useRef<boolean>(true);
-
-  useEffect(() => {
-    isStreamingRef.current = isStreaming;
-  }, [isStreaming]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    connectWebSocket();
-
-    return () => {
-      isMountedRef.current = false;
-      if (wsRef.current) {
-        try {
-          wsRef.current.close();
-        } catch (e) {}
-      }
-    };
-  }, [serverIp, serverPort]);
-
-  useEffect(() => {
-    if (wsConnected && isStreaming) {
-      triggerNextFrame();
-    }
-  }, [wsConnected, isStreaming]);
-
-  const connectWebSocket = () => {
-    if (wsRef.current) {
-      try {
-        wsRef.current.close();
-      } catch (e) {}
-    }
-
-    const wsUrl = `ws://${serverIp}:${serverPort}/ws`;
+const POSE_HTML_BUNDLE = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background-color: #0F172A; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    video { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); pointer-events: none; }
     
-    try {
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        if (!isMountedRef.current) return;
-        setWsConnected(true);
-        triggerNextFrame();
-      };
-
-      ws.onmessage = (event) => {
-        if (!isMountedRef.current) return;
-        try {
-          const data = JSON.parse(event.data);
-          if (data.detected && data.landmarks && data.landmarks.length > 0) {
-            setLandmarks(data.landmarks);
-            setPoseDetected(true);
-          } else {
-            setLandmarks([]);
-            setPoseDetected(false);
-          }
-          if (data.fps) {
-            setFps(data.fps);
-          }
-        } catch (e) {}
-
-        isCapturingRef.current = false;
-        if (isMountedRef.current && isStreamingRef.current) {
-          requestAnimationFrame(() => triggerNextFrame());
+    #loader-overlay {
+      position: absolute; z-index: 20; width: 85%; max-width: 360px;
+      background: rgba(30, 41, 59, 0.94); border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px; padding: 24px; text-align: center; color: #F8FAFC;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); backdrop-filter: blur(16px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .loader-icon { font-size: 36px; margin-bottom: 12px; display: inline-block; }
+    .loader-title { font-size: 18px; font-weight: 700; color: #F8FAFC; margin-bottom: 6px; }
+    .loader-status { font-size: 13px; color: #94A3B8; margin-bottom: 16px; min-height: 20px; line-height: 18px; }
+    
+    .progress-track {
+      width: 100%; height: 10px; background-color: #0F172A; border-radius: 10px;
+      overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 8px;
+    }
+    .progress-fill {
+      height: 100%; width: 5%; background: linear-gradient(90deg, #6366F1, #818CF8);
+      border-radius: 10px; transition: width 0.25s ease;
+    }
+    .progress-percentage { font-size: 12px; font-weight: 600; color: #818CF8; text-align: right; }
+    
+    #retry-btn {
+      display: none; margin-top: 14px; background-color: #6366F1; color: #fff;
+      border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600;
+      font-size: 13px; cursor: pointer;
+    }
+  </style>
+  <script>
+    if (!navigator.mediaDevices) {
+      navigator.mediaDevices = {};
+    }
+    if (!navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia = function(constraints) {
+        const legacyGetUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.getUserMedia;
+        if (!legacyGetUserMedia) {
+          return Promise.reject(new Error('getUserMedia is not supported in this WebView context'));
         }
+        return new Promise(function(resolve, reject) {
+          legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+        });
       };
-
-      ws.onerror = () => {
-        if (!isMountedRef.current) return;
-        setWsConnected(false);
-        isCapturingRef.current = false;
-      };
-
-      ws.onclose = () => {
-        if (!isMountedRef.current) return;
-        setWsConnected(false);
-        isCapturingRef.current = false;
-      };
-
-      wsRef.current = ws;
-    } catch (e) {
-      setWsConnected(false);
     }
-  };
+  </script>
+</head>
+<body>
+  <div id="container">
+    <div id="loader-overlay">
+      <div class="loader-icon" id="loader-icon">📦</div>
+      <div class="loader-title">Loading Pose Model</div>
+      <div class="loader-status" id="loader-status-text">Connecting to Local Backend Server...</div>
+      
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar-fill"></div>
+      </div>
+      <div class="progress-percentage" id="progress-pct-text">10%</div>
+      
+      <button id="retry-btn" onclick="location.reload()">🔄 Retry</button>
+    </div>
 
-  const triggerNextFrame = async () => {
-    if (
-      !isMountedRef.current ||
-      !isStreamingRef.current ||
-      isCapturingRef.current ||
-      !cameraRef.current ||
-      !wsRef.current ||
-      wsRef.current.readyState !== WebSocket.OPEN
-    ) {
-      return;
+    <video id="video" playsinline webkit-playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const loaderOverlay = document.getElementById('loader-overlay');
+    const statusText = document.getElementById('loader-status-text');
+    const progressFill = document.getElementById('progress-bar-fill');
+    const pctText = document.getElementById('progress-pct-text');
+    const retryBtn = document.getElementById('retry-btn');
+    const loaderIcon = document.getElementById('loader-icon');
+
+    let currentProgress = 10;
+    let poseInstance = null;
+    let selectedComplexity = 1;
+
+    function setProgress(pct, statusMsg, isError = false) {
+      currentProgress = Math.max(currentProgress, Math.min(100, pct));
+      progressFill.style.width = currentProgress + '%';
+      pctText.innerText = Math.round(currentProgress) + '%';
+      if (statusMsg) {
+        statusText.innerText = statusMsg;
+      }
+      if (isError) {
+        loaderIcon.innerText = '⚠️';
+        retryBtn.style.display = 'inline-block';
+        statusText.style.color = '#EF4444';
+      }
     }
 
-    try {
-      isCapturingRef.current = true;
-
-      const photo = await cameraRef.current.takeSnapshot({
-        quality: 50,
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
       });
+    }
 
-      if (isMountedRef.current && photo?.path) {
-        const path = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-        const base64 = await FileSystem.readAsStringAsync(path, {
-          encoding: 'base64',
+    async function initApp() {
+      const LOCAL_STATIC = "${SERVER_HOST}/static";
+
+      try {
+        setProgress(25, 'Loading Camera Utilities from Backend...');
+        await loadScript(LOCAL_STATIC + '/camera_utils.js');
+
+        setProgress(45, 'Loading Pose Library from Backend...');
+        await loadScript(LOCAL_STATIC + '/pose.js');
+
+        if (typeof window.Pose === 'undefined') {
+          throw new Error('Pose library failed to initialize');
+        }
+
+        const POSE_CONNECTIONS = [
+          [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8], [9, 10],
+          [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+          [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+          [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28],
+          [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32]
+        ];
+
+        poseInstance = new window.Pose({
+          locateFile: (file) => {
+            setProgress(70, 'Downloading Model Asset: ' + file);
+            return LOCAL_STATIC + '/' + file;
+          }
         });
 
-        if (
-          isMountedRef.current &&
-          base64 &&
-          wsRef.current &&
-          wsRef.current.readyState === WebSocket.OPEN
-        ) {
-          wsRef.current.send(base64);
-        } else {
-          isCapturingRef.current = false;
+        poseInstance.setOptions({
+          modelComplexity: selectedComplexity,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          minDetectionConfidence: 0.4,
+          minTrackingConfidence: 0.4
+        });
+
+        let modelReady = false;
+
+        poseInstance.onResults((results) => {
+          if (!modelReady) {
+            modelReady = true;
+            setProgress(100, 'Backend Pose Model Loaded Successfully!');
+            setTimeout(() => {
+              loaderOverlay.style.opacity = '0';
+              loaderOverlay.style.transform = 'scale(0.9)';
+              setTimeout(() => { loaderOverlay.style.display = 'none'; }, 400);
+            }, 300);
+          }
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+            ctx.lineWidth = 4.5;
+            ctx.strokeStyle = '#6366F1';
+            for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
+              const start = results.poseLandmarks[startIdx];
+              const end = results.poseLandmarks[endIdx];
+              if (start && end && (start.visibility || 1) > 0.3 && (end.visibility || 1) > 0.3) {
+                ctx.beginPath();
+                ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+                ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+                ctx.stroke();
+              }
+            }
+
+            for (const lm of results.poseLandmarks) {
+              if ((lm.visibility || 1) > 0.3) {
+                ctx.beginPath();
+                ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 6.5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#10B981';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.stroke();
+              }
+            }
+
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'POSE_DETECTED',
+                count: results.poseLandmarks.length
+              }));
+            }
+          } else {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'NO_PERSON',
+                count: 0
+              }));
+            }
+          }
+        });
+
+        setProgress(85, 'Accessing Front Selfie Camera...');
+
+        let currentFacingMode = 'user';
+        let currentStream = null;
+
+        function startCamera(facingMode) {
+          if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+          }
+
+          const constraints = {
+            video: {
+              facingMode: facingMode,
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            },
+            audio: false
+          };
+
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+              currentStream = stream;
+              video.srcObject = stream;
+              video.play();
+              setProgress(95, 'Starting Neural Processing...');
+
+              async function sendFrame() {
+                if (video.readyState >= 2 && poseInstance) {
+                  await poseInstance.send({ image: video });
+                }
+                requestAnimationFrame(sendFrame);
+              }
+              sendFrame();
+            }).catch((err) => {
+              setProgress(currentProgress, '⚠️ Camera Access Error: ' + err.message, true);
+              console.error(err);
+            });
+          } else {
+            setProgress(currentProgress, '⚠️ navigator.mediaDevices.getUserMedia is unavailable', true);
+          }
         }
-      } else {
-        isCapturingRef.current = false;
+
+        window.toggleFacingMode = function() {
+          currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+          startCamera(currentFacingMode);
+        };
+
+        window.setInitialComplexity = function(level) {
+          selectedComplexity = level;
+          if (poseInstance) {
+            poseInstance.setOptions({
+              modelComplexity: level,
+              smoothLandmarks: true,
+              minDetectionConfidence: 0.4,
+              minTrackingConfidence: 0.4
+            });
+          }
+        };
+
+        startCamera(currentFacingMode);
+
+      } catch (err) {
+        setProgress(currentProgress, '⚠️ Backend Error: Start backend/server.py at ${SERVER_HOST}', true);
+        console.error(err);
       }
-    } catch (e) {
-      isCapturingRef.current = false;
-      if (isMountedRef.current && isStreamingRef.current) {
-        setTimeout(triggerNextFrame, 100);
+    }
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    initApp();
+  </script>
+</body>
+</html>
+`;
+
+export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedModel }) => {
+  const [poseStatus, setPoseStatus] = useState<string>('Connecting to Backend Server...');
+  const [poseDetected, setPoseDetected] = useState<boolean>(false);
+  const webViewRef = useRef<WebView | null>(null);
+
+  const numericComplexity = selectedModel === 'light' ? 0 : selectedModel === 'high' ? 2 : 1;
+
+  const handleMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'POSE_DETECTED') {
+        const label =
+          selectedModel === 'light'
+            ? 'Light Model'
+            : selectedModel === 'high'
+            ? 'High Model'
+            : 'Medium Model';
+        setPoseStatus(`🧍 MediaPipe Active (${label})`);
+        setPoseDetected(true);
+      } else if (data.type === 'NO_PERSON') {
+        setPoseStatus('🔍 Searching for Person in Frame...');
+        setPoseDetected(false);
       }
+    } catch (e) {}
+  };
+
+  const handleToggleFlip = () => {
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript('window.toggleFacingMode(); true;');
     }
   };
 
-  const toggleCameraFacing = () => {
-    setFacing((current) => (current === 'back' ? 'front' : 'back'));
-  };
-
-  const onLayoutContainer = (event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    setContainerSize({ width, height });
-  };
-
-  const handleClose = () => {
-    isMountedRef.current = false;
-    setIsStreaming(false);
-    if (wsRef.current) {
-      try {
-        wsRef.current.close();
-      } catch (e) {}
+  const handleWebViewLoad = () => {
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`window.setInitialComplexity(${numericComplexity}); true;`);
     }
-    onClose();
   };
 
-  if (!hasPermission) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar hidden />
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-            <Text style={styles.closeButtonText}>← Back</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.permissionContent}>
-          <View style={styles.permissionIconContainer}>
-            <Text style={styles.permissionIconText}>📷</Text>
-          </View>
-          <Text style={styles.permissionTitle}>Camera Access Required</Text>
-          <Text style={styles.permissionMessage}>
-            Please grant camera permission to display front camera view with react-native-vision-camera.
-          </Text>
-          <TouchableOpacity
-            style={styles.grantButton}
-            activeOpacity={0.8}
-            onPress={requestPermission}
-          >
-            <Text style={styles.grantButtonText}>Grant Camera Permission</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (device == null) {
-    return (
-      <View style={styles.centerContainer}>
-        <StatusBar hidden />
-        <ActivityIndicator size="large" color="#6366F1" />
-        <Text style={styles.loadingText}>No camera device found...</Text>
-      </View>
-    );
-  }
-
-  const { width, height } = containerSize;
+  const getModelLabel = () => {
+    switch (selectedModel) {
+      case 'light':
+        return '⚡ Light Model';
+      case 'high':
+        return '🔥 High Model';
+      case 'medium':
+      default:
+        return '🎯 Medium Model';
+    }
+  };
 
   return (
-    <View style={styles.cameraContainer} onLayout={onLayoutContainer}>
+    <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* Vision Camera Component */}
-      <Camera
-        ref={cameraRef}
+      <WebView
+        ref={webViewRef}
+        source={{ html: POSE_HTML_BUNDLE, baseUrl: 'https://localhost' }}
         style={StyleSheet.absoluteFillObject}
-        device={device}
-        isActive={true}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        javaScriptEnabled
+        domStorageEnabled
+        allowFileAccess
+        allowUniversalAccessFromFileURLs
+        allowingReadAccessToURL="*"
+        mixedContentMode="always"
+        originWhitelist={['*']}
+        onMessage={handleMessage}
+        onLoadEnd={handleWebViewLoad}
       />
 
-      {/* SVG Overlay: Real-time 33 MediaPipe pose landmarks */}
-      {width > 0 && height > 0 && landmarks.length > 0 && (
-        <Svg style={StyleSheet.absoluteFillObject} pointerEvents="none">
-          {POSE_CONNECTIONS.map(([startIdx, endIdx], idx) => {
-            const start = landmarks[startIdx];
-            const end = landmarks[endIdx];
-
-            if (start && end) {
-              const x1 = facing === 'front' ? (1 - start.x) * width : start.x * width;
-              const y1 = start.y * height;
-              const x2 = facing === 'front' ? (1 - end.x) * width : end.x * width;
-              const y2 = end.y * height;
-
-              return (
-                <Line
-                  key={`line-${idx}`}
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  stroke="#6366F1"
-                  strokeWidth={4.5}
-                  strokeLinecap="round"
-                />
-              );
-            }
-            return null;
-          })}
-
-          {landmarks.map((lm, idx) => {
-            const cx = facing === 'front' ? (1 - lm.x) * width : lm.x * width;
-            const cy = lm.y * height;
-
-            return (
-              <Circle
-                key={`dot-${idx}`}
-                cx={cx}
-                cy={cy}
-                r={6.5}
-                fill="#10B981"
-                stroke="#FFFFFF"
-                strokeWidth={2}
-              />
-            );
-          })}
-        </Svg>
-      )}
-
-      {/* Top Overlay Header */}
       <SafeAreaView style={styles.overlayHeader}>
-        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={handleClose}>
+        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={onClose}>
           <Text style={styles.glassButtonText}>✕ Close</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.toggleStreamButton,
-            isStreaming ? styles.streamActiveBg : styles.streamInactiveBg,
-          ]}
-          activeOpacity={0.85}
-          onPress={() => {
-            if (!wsConnected) {
-              setShowConfigModal(true);
-            } else {
-              const nextState = !isStreaming;
-              setIsStreaming(nextState);
-              if (nextState) {
-                triggerNextFrame();
-              }
-            }
-          }}
-        >
-          <Text style={styles.toggleStreamText}>
-            {isStreaming ? `⚡ Vision Camera (${fps} FPS)` : '⚡ Stream Paused'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.glassPillBadge}>
+          <Text style={styles.glassPillBadgeText}>{getModelLabel()}</Text>
+        </View>
 
-        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={toggleCameraFacing}>
+        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={handleToggleFlip}>
           <Text style={styles.glassButtonText}>🔄 Flip</Text>
         </TouchableOpacity>
       </SafeAreaView>
 
-      {/* Bottom Status Indicator */}
       <SafeAreaView style={styles.overlayFooter}>
-        <TouchableOpacity
-          style={styles.statusPill}
-          activeOpacity={0.85}
-          onPress={() => setShowConfigModal(true)}
-        >
-          <View style={[styles.statusDot, { backgroundColor: wsConnected ? '#10B981' : '#F59E0B' }]} />
-          <Text style={styles.statusPillText}>
-            {isStreaming && poseDetected
-              ? `🧍 Vision Camera Pose • ${fps} FPS`
-              : isStreaming
-              ? '🔍 Searching for Person in Frame...'
-              : wsConnected
-              ? 'Tap "Stream Paused" to Start'
-              : `Tap to set Server IP (${serverIp}:${serverPort})`}
-          </Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-
-      {/* Server IP Config Modal */}
-      <Modal visible={showConfigModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Configure Pose Server IP</Text>
-            <Text style={styles.modalSubtitle}>
-              Set your local computer IP address running Python server.py
-            </Text>
-
-            <Text style={styles.inputLabel}>Server IP Address:</Text>
-            <TextInput
-              style={styles.textInput}
-              value={serverIp}
-              onChangeText={setServerIp}
-              placeholder="e.g. 192.168.29.110"
-              placeholderTextColor="#64748B"
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.inputLabel}>Server Port:</Text>
-            <TextInput
-              style={styles.textInput}
-              value={serverPort}
-              onChangeText={setServerPort}
-              placeholder="8000"
-              placeholderTextColor="#64748B"
-              keyboardType="numeric"
-            />
-
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setShowConfigModal(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalSaveButton}
-                onPress={() => {
-                  setShowConfigModal(false);
-                  connectWebSocket();
-                }}
-              >
-                <Text style={styles.modalSaveButtonText}>Save & Connect</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, { backgroundColor: poseDetected ? '#10B981' : '#F59E0B' }]} />
+          <Text style={styles.statusPillText}>{poseStatus}</Text>
         </View>
-      </Modal>
+      </SafeAreaView>
     </View>
   );
 };
@@ -424,84 +405,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F172A',
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    color: '#94A3B8',
-    fontSize: 15,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  closeButton: {
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  closeButtonText: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  permissionContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  permissionIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-  },
-  permissionIconText: {
-    fontSize: 36,
-  },
-  permissionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  permissionMessage: {
-    fontSize: 15,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  grantButton: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 30,
-  },
-  grantButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: '#000000',
   },
   overlayHeader: {
     flexDirection: 'row',
@@ -523,23 +426,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  toggleStreamButton: {
+  glassPillBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
+    borderColor: '#6366F1',
   },
-  streamActiveBg: {
-    backgroundColor: 'rgba(16, 185, 129, 0.25)',
-    borderColor: '#10B981',
-  },
-  streamInactiveBg: {
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  toggleStreamText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  glassPillBadgeText: {
+    color: '#F8FAFC',
+    fontSize: 12,
     fontWeight: '600',
   },
   overlayFooter: {
@@ -568,78 +465,6 @@ const styles = StyleSheet.create({
   statusPillText: {
     color: '#F8FAFC',
     fontSize: 12,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#1E293B',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginBottom: 16,
-    lineHeight: 16,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#CBD5E1',
-    marginBottom: 4,
-  },
-  textInput: {
-    backgroundColor: '#0F172A',
-    color: '#F8FAFC',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    marginBottom: 12,
-    fontSize: 14,
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 4,
-  },
-  modalCloseButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginRight: 8,
-  },
-  modalCloseButtonText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  modalSaveButton: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  modalSaveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '600',
   },
 });
