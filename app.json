@@ -16,6 +16,11 @@
         "CAMERA"
       ],
       "usesCleartextTraffic": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5bae5656-b031-43c6-97d3-cd248988b3a9"
+      }
     }
   }
 }

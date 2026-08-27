@@ -11,7 +11,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-app = FastAPI(title="MediaPipe Real-Time Pose Server")
+app = FastAPI(title="MediaPipe Real-Time Pose & Static Model Server")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,12 +21,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+@app.middleware("http")
+async def add_ngrok_header(request, call_next):
+    response = await call_next(request)
+    response.headers["ngrok-skip-browser-warning"] = "true"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
-model_path = os.path.join(os.path.dirname(__file__), "pose_landmarker_lite.task")
-base_options = python.BaseOptions(model_asset_path=model_path)
+# Serve local static MediaPipe model assets over local Wi-Fi
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Initialize MediaPipe PoseLandmarker
+base_options = python.BaseOptions(model_asset_path='pose_landmarker_lite.task')
 options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     running_mode=vision.RunningMode.IMAGE,
@@ -45,9 +52,15 @@ POSE_CONNECTIONS = [
     (27, 29), (28, 30), (29, 31), (30, 32), (27, 31), (28, 32)
 ]
 
+from fastapi.responses import FileResponse
+
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "MediaPipe Pose Server active"}
+    return {"status": "ok", "message": "MediaPipe Server & Static Asset Server Active"}
+
+@app.get("/pose")
+def get_pose_page():
+    return FileResponse("static/pose.html")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -114,4 +127,40 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import subprocess
+    import atexit
+
+    TUNNEL_TOKEN = "eyJhIjoiZGIyYzI0NDJjY2Q1ODdmMDdhOThlYzE2MDgwMTQ5ZjUiLCJ0IjoiN2M1YmYwNTgtMTNhZS00OGI5LTgzMmEtZTc3OWMxZjMzNzMxIiwicyI6Ik5qWXlPRGMzWW1RdFpHVmlOaTAwTW1KbExUa3lZamN0Tm1NMFpqYzBNV1ptWWpWayJ9"
+
+    tunnel_proc = None
+    try:
+        print("=" * 50)
+        print("🚀 Starting Cloudflare Tunnel...")
+        print("=" * 50)
+        print("🔗 Public URL: https://app.codequestpro.in")
+        print("🏠 Local server: http://localhost:8000")
+        print("-" * 50)
+
+        tunnel_proc = subprocess.Popen([
+            "cloudflared",
+            "tunnel",
+            "run",
+            "--token",
+            TUNNEL_TOKEN
+        ])
+
+        def cleanup_tunnel():
+            if tunnel_proc and tunnel_proc.poll() is None:
+                print("\nStopping Cloudflare tunnel...")
+                tunnel_proc.terminate()
+                tunnel_proc.wait()
+
+        atexit.register(cleanup_tunnel)
+    except Exception as e:
+        print(f"⚠️ Could not start Cloudflare tunnel: {e}")
+
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    finally:
+        if tunnel_proc and tunnel_proc.poll() is None:
+            tunnel_proc.terminate()

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background-color: #0F172A; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    video { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); pointer-events: none; }
+    
+    #loader-overlay {
+      position: absolute; z-index: 20; width: 85%; max-width: 360px;
+      background: rgba(30, 41, 59, 0.94); border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px; padding: 24px; text-align: center; color: #F8FAFC;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); backdrop-filter: blur(16px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .loader-icon { font-size: 36px; margin-bottom: 12px; display: inline-block; }
+    .loader-title { font-size: 18px; font-weight: 700; color: #F8FAFC; margin-bottom: 6px; }
+    .loader-status { font-size: 13px; color: #94A3B8; margin-bottom: 16px; min-height: 20px; line-height: 18px; }
+    
+    .progress-track {
+      width: 100%; height: 10px; background-color: #0F172A; border-radius: 10px;
+      overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 8px;
+    }
+    .progress-fill {
+      height: 100%; width: 5%; background: linear-gradient(90deg, #6366F1, #818CF8);
+      border-radius: 10px; transition: width 0.25s ease;
+    }
+    .progress-percentage { font-size: 12px; font-weight: 600; color: #818CF8; text-align: right; }
+    
+    #retry-btn {
+      display: none; margin-top: 14px; background-color: #6366F1; color: #fff;
+      border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600;
+      font-size: 13px; cursor: pointer;
+    }
+  </style>
+  <script src="/static/camera_utils.js"></script>
+  <script src="/static/pose.js"></script>
+</head>
+<body>
+  <div id="container">
+    <div id="loader-overlay">
+      <div class="loader-icon" id="loader-icon">📦</div>
+      <div class="loader-title">Loading Pose Model</div>
+      <div class="loader-status" id="loader-status-text">Connecting to Backend Server...</div>
+      
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar-fill"></div>
+      </div>
+      <div class="progress-percentage" id="progress-pct-text">10%</div>
+      
+      <button id="retry-btn" onclick="location.reload()">🔄 Retry</button>
+    </div>
+
+    <video id="video" playsinline webkit-playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const loaderOverlay = document.getElementById('loader-overlay');
+    const statusText = document.getElementById('loader-status-text');
+    const progressFill = document.getElementById('progress-bar-fill');
+    const pctText = document.getElementById('progress-pct-text');
+    const retryBtn = document.getElementById('retry-btn');
+    const loaderIcon = document.getElementById('loader-icon');
+
+    let currentProgress = 10;
+    let poseInstance = null;
+    let selectedComplexity = 1;
+
+    function setProgress(pct, statusMsg, isError = false) {
+      currentProgress = Math.max(currentProgress, Math.min(100, pct));
+      progressFill.style.width = currentProgress + '%';
+      pctText.innerText = Math.round(currentProgress) + '%';
+      if (statusMsg) {
+        statusText.innerText = statusMsg;
+      }
+      if (isError) {
+        loaderIcon.innerText = '⚠️';
+        retryBtn.style.display = 'inline-block';
+        statusText.style.color = '#EF4444';
+      }
+    }
+
+    async function initApp() {
+      try {
+        setProgress(40, 'Initializing Pose Model...');
+
+        if (typeof window.Pose === 'undefined') {
+          throw new Error('Pose library failed to load');
+        }
+
+        const POSE_CONNECTIONS = [
+          [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8], [9, 10],
+          [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+          [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+          [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28],
+          [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32]
+        ];
+
+        poseInstance = new window.Pose({
+          locateFile: (file) => {
+            setProgress(70, 'Downloading Model Asset: ' + file);
+            return '/static/' + file;
+          }
+        });
+
+        poseInstance.setOptions({
+          modelComplexity: selectedComplexity,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          minDetectionConfidence: 0.4,
+          minTrackingConfidence: 0.4
+        });
+
+        let modelReady = false;
+
+        poseInstance.onResults((results) => {
+          if (!modelReady) {
+            modelReady = true;
+            setProgress(100, 'Backend Pose Model Loaded Successfully!');
+            setTimeout(() => {
+              loaderOverlay.style.opacity = '0';
+              loaderOverlay.style.transform = 'scale(0.9)';
+              setTimeout(() => { loaderOverlay.style.display = 'none'; }, 400);
+            }, 300);
+          }
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+            ctx.lineWidth = 4.5;
+            ctx.strokeStyle = '#6366F1';
+            for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
+              const start = results.poseLandmarks[startIdx];
+              const end = results.poseLandmarks[endIdx];
+              if (start && end && (start.visibility || 1) > 0.3 && (end.visibility || 1) > 0.3) {
+                ctx.beginPath();
+                ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+                ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+                ctx.stroke();
+              }
+            }
+
+            for (const lm of results.poseLandmarks) {
+              if ((lm.visibility || 1) > 0.3) {
+                ctx.beginPath();
+                ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 6.5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#10B981';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.stroke();
+              }
+            }
+
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'POSE_DETECTED',
+                count: results.poseLandmarks.length
+              }));
+            }
+          } else {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'NO_PERSON',
+                count: 0
+              }));
+            }
+          }
+        });
+
+        setProgress(85, 'Accessing Camera...');
+
+        let currentFacingMode = 'user';
+        let currentStream = null;
+
+        function startCamera(facingMode) {
+          if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+          }
+
+          const constraints = {
+            video: {
+              facingMode: facingMode,
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            },
+            audio: false
+          };
+
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+              currentStream = stream;
+              video.srcObject = stream;
+              video.play();
+              setProgress(95, 'Starting Neural Processing...');
+
+              async function sendFrame() {
+                if (video.readyState >= 2 && poseInstance) {
+                  await poseInstance.send({ image: video });
+                }
+                requestAnimationFrame(sendFrame);
+              }
+              sendFrame();
+            }).catch((err) => {
+              setProgress(currentProgress, '⚠️ Camera Access Error: ' + err.message, true);
+              console.error(err);
+            });
+          } else {
+            setProgress(currentProgress, '⚠️ Camera access is not supported in this browser context', true);
+          }
+        }
+
+        window.toggleFacingMode = function() {
+          currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+          startCamera(currentFacingMode);
+        };
+
+        window.setInitialComplexity = function(level) {
+          selectedComplexity = level;
+          if (poseInstance) {
+            poseInstance.setOptions({
+              modelComplexity: level,
+              smoothLandmarks: true,
+              minDetectionConfidence: 0.4,
+              minTrackingConfidence: 0.4
+            });
+          }
+        };
+
+        startCamera(currentFacingMode);
+
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        setProgress(currentProgress, '⚠️ Model Error: ' + msg, true);
+        console.error(err);
+      }
+    }
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    initApp();
+  </script>
+</body>
+</html>

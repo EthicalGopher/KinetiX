@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Camera } from 'expo-camera';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
@@ -16,7 +17,7 @@ interface CameraScreenProps {
   selectedModel: ModelComplexity;
 }
 
-const SERVER_HOST = 'http://192.168.29.110:8000';
+const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
 const POSE_HTML_BUNDLE = `
 <!DOCTYPE html>
@@ -94,42 +95,50 @@ const POSE_HTML_BUNDLE = `
   </div>
 
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const loaderOverlay = document.getElementById('loader-overlay');
-    const statusText = document.getElementById('loader-status-text');
-    const progressFill = document.getElementById('progress-bar-fill');
-    const pctText = document.getElementById('progress-pct-text');
-    const retryBtn = document.getElementById('retry-btn');
-    const loaderIcon = document.getElementById('loader-icon');
-
-    let currentProgress = 10;
-    let poseInstance = null;
-    let selectedComplexity = 1;
-
-    function setProgress(pct, statusMsg, isError = false) {
-      currentProgress = Math.max(currentProgress, Math.min(100, pct));
-      progressFill.style.width = currentProgress + '%';
-      pctText.innerText = Math.round(currentProgress) + '%';
-      if (statusMsg) {
-        statusText.innerText = statusMsg;
+    // Patch fetch and XHR to automatically skip ngrok browser warning pages
+    const _origFetch = window.fetch;
+    window.fetch = function(url, init) {
+      init = init || {};
+      init.headers = init.headers || {};
+      if (init.headers instanceof Headers) {
+        init.headers.append('ngrok-skip-browser-warning', 'true');
+      } else {
+        init.headers['ngrok-skip-browser-warning'] = 'true';
       }
-      if (isError) {
-        loaderIcon.innerText = '⚠️';
-        retryBtn.style.display = 'inline-block';
-        statusText.style.color = '#EF4444';
-      }
-    }
+      return _origFetch(url, init);
+    };
 
-    function loadScript(url) {
-      return new Promise((resolve, reject) => {
+    const _origXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+      const res = _origXHROpen.apply(this, [method, url, ...rest]);
+      try {
+        this.setRequestHeader('ngrok-skip-browser-warning', 'true');
+      } catch (e) {}
+      return res;
+    };
+
+    async function loadScript(url) {
+      try {
+        const resp = await fetch(url, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (!resp.ok) {
+          throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
+        }
+        const jsContent = await resp.text();
         const script = document.createElement('script');
-        script.src = url;
-        script.onload = resolve;
-        script.onerror = reject;
+        script.textContent = jsContent;
         document.head.appendChild(script);
-      });
+      } catch (err) {
+        console.error('Failed script fetch:', err);
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = url;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
     }
 
     async function initApp() {
@@ -288,7 +297,8 @@ const POSE_HTML_BUNDLE = `
         startCamera(currentFacingMode);
 
       } catch (err) {
-        setProgress(currentProgress, '⚠️ Backend Error: Start backend/server.py at ${SERVER_HOST}', true);
+        const msg = err && err.message ? err.message : String(err);
+        setProgress(currentProgress, '⚠️ Backend Error (' + msg + ') - Ensure server.py is running at ' + LOCAL_STATIC, true);
         console.error(err);
       }
     }
@@ -310,6 +320,19 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
   const [poseStatus, setPoseStatus] = useState<string>('Connecting to Backend Server...');
   const [poseDetected, setPoseDetected] = useState<boolean>(false);
   const webViewRef = useRef<WebView | null>(null);
+
+  useEffect(() => {
+    async function requestPermissions() {
+      try {
+        if (Camera && Camera.requestCameraPermissionsAsync) {
+          await Camera.requestCameraPermissionsAsync();
+        }
+      } catch (e) {
+        console.warn('Camera permission request error:', e);
+      }
+    }
+    requestPermissions();
+  }, []);
 
   const numericComplexity = selectedModel === 'light' ? 0 : selectedModel === 'high' ? 2 : 1;
 
@@ -362,7 +385,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
 
       <WebView
         ref={webViewRef}
-        source={{ html: POSE_HTML_BUNDLE, baseUrl: 'https://localhost' }}
+        source={{
+          uri: `${SERVER_HOST}/pose`,
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }}
+        userAgent="MobilePoseApp/1.0"
         style={StyleSheet.absoluteFillObject}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
@@ -373,6 +402,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
         allowingReadAccessToURL="*"
         mixedContentMode="always"
         originWhitelist={['*']}
+        onPermissionRequest={(event: any) => {
+          if (event && event.nativeEvent && event.nativeEvent.resources) {
+            // Android WebView permission handler
+          }
+          if (typeof (event as any).grant === 'function') {
+            (event as any).grant((event as any).resources);
+          }
+        }}
         onMessage={handleMessage}
         onLoadEnd={handleWebViewLoad}
       />
