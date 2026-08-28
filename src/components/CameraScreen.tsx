@@ -5,10 +5,13 @@ import {
   View,
   TouchableOpacity,
   StatusBar,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera } from 'expo-camera';
+import type { MainTab } from './HomeScreen';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
@@ -17,7 +20,8 @@ interface CameraScreenProps {
   selectedModel: ModelComplexity;
 }
 
-const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
+const RAW_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
+const SERVER_HOST = RAW_HOST.replace(/\/+$/, '');
 
 const POSE_HTML_BUNDLE = `
 <!DOCTYPE html>
@@ -321,6 +325,38 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
   const [poseDetected, setPoseDetected] = useState<boolean>(false);
   const webViewRef = useRef<WebView | null>(null);
 
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(true);
+  const line1Rotate = useRef(new Animated.Value(1)).current;
+  const line2Scale = useRef(new Animated.Value(0)).current;
+  const line3Rotate = useRef(new Animated.Value(1)).current;
+  const menuItemsAnim = useRef(
+    [0, 1].map(() => new Animated.Value(1))
+  ).current;
+
+  const pan = useRef(new Animated.ValueXY({ x: 16, y: 40 })).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
+
   useEffect(() => {
     async function requestPermissions() {
       try {
@@ -379,6 +415,42 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
     }
   };
 
+  const toggleMenu = () => {
+    const nextOpen = !isMenuOpen;
+    setIsMenuOpen(nextOpen);
+
+    Animated.parallel([
+      Animated.timing(line1Rotate, {
+        toValue: nextOpen ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(line2Scale, {
+        toValue: nextOpen ? 0 : 1,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(line3Rotate, {
+        toValue: nextOpen ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    Animated.stagger(100, [
+      Animated.spring(menuItemsAnim[0], {
+        toValue: nextOpen ? 1 : 0,
+        friction: 8,
+        useNativeDriver: false,
+      }),
+      Animated.spring(menuItemsAnim[1], {
+        toValue: nextOpen ? 1 : 0,
+        friction: 8,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar hidden />
@@ -402,38 +474,138 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
         allowingReadAccessToURL="*"
         mixedContentMode="always"
         originWhitelist={['*']}
-        onPermissionRequest={(event: any) => {
-          if (event && event.nativeEvent && event.nativeEvent.resources) {
-            // Android WebView permission handler
-          }
-          if (typeof (event as any).grant === 'function') {
-            (event as any).grant((event as any).resources);
-          }
-        }}
         onMessage={handleMessage}
         onLoadEnd={handleWebViewLoad}
-      />
+       />
 
-      <SafeAreaView style={styles.overlayHeader}>
-        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={onClose}>
-          <Text style={styles.glassButtonText}>✕ Close</Text>
+      {/* Draggable Hamburger Radial Menu */}
+      <Animated.View
+        style={[styles.menuContainer, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]}
+        {...panResponder.panHandlers}
+      >
+        {menuItemsAnim.map((anim, i) => {
+          const itemConfigs = [
+            { icon: '✕', color: '#EF4444', label: 'Close', onPress: onClose },
+            { icon: '🔄', color: '#3B82F6', label: 'Flip', onPress: handleToggleFlip },
+          ];
+          const pos = [
+            { x: 80, y: -90 },
+            { x: 150, y: -45 },
+          ];
+          const cfg = itemConfigs[i];
+          const position = pos[i];
+          const translateX = anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, position.x - 40],
+          });
+          const translateY = anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, position.y],
+          });
+          const itemScale = anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+          });
+          return (
+            <Animated.View
+              key={cfg.label}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: cfg.color,
+                  opacity: anim,
+                  transform: [{ translateX }, { translateY }, { scale: itemScale }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.menuItemInner}
+                activeOpacity={0.85}
+                onPress={cfg.onPress ? cfg.onPress : undefined}
+              >
+                <Text style={styles.menuItemText}>{cfg.icon}</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
+
+        {/* Hamburger Toggle Button */}
+        <TouchableOpacity
+          style={styles.hamburgerBtn}
+          activeOpacity={0.85}
+          onPress={toggleMenu}
+        >
+          <Animated.View
+            style={[
+              styles.hamburgerLine,
+              {
+                top: '50%',
+                left: '50%',
+                marginLeft: -12.5,
+                marginTop: -1.5,
+                transform: [
+                  {
+                    rotate: line1Rotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '45deg'],
+                    }),
+                  },
+                  {
+                    translateY: line1Rotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.hamburgerLine,
+              {
+                top: '50%',
+                left: '50%',
+                marginLeft: -12.5,
+                marginTop: -1.5,
+                transform: [
+                  {
+                    scaleX: line2Scale.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.1, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.hamburgerLine,
+              {
+                top: '50%',
+                left: '50%',
+                marginLeft: -12.5,
+                marginTop: -1.5,
+                transform: [
+                  {
+                    rotate: line3Rotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '-45deg'],
+                    }),
+                  },
+                  {
+                    translateY: line3Rotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [8, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
         </TouchableOpacity>
-
-        <View style={styles.glassPillBadge}>
-          <Text style={styles.glassPillBadgeText}>{getModelLabel()}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.glassButton} activeOpacity={0.8} onPress={handleToggleFlip}>
-          <Text style={styles.glassButtonText}>🔄 Flip</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-
-      <SafeAreaView style={styles.overlayFooter}>
-        <View style={styles.statusPill}>
-          <View style={[styles.statusDot, { backgroundColor: poseDetected ? '#10B981' : '#F59E0B' }]} />
-          <Text style={styles.statusPillText}>{poseStatus}</Text>
-        </View>
-      </SafeAreaView>
+      </Animated.View>
     </View>
   );
 };
@@ -441,67 +613,53 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0f172a',
   },
-  overlayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  glassButton: {
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  glassButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  glassPillBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.25)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#6366F1',
-  },
-  glassPillBadgeText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  overlayFooter: {
+  menuContainer: {
     position: 'absolute',
-    bottom: 24,
+    top: 0,
     left: 0,
-    right: 0,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
-  statusPill: {
-    flexDirection: 'row',
+  menuItem: {
+    position: 'absolute',
+    top: 0,
+    left: -40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 25,
+    justifyContent: 'center',
+  },
+  menuItemInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 26,
+  },
+  hamburgerBtn: {
+    position: 'absolute',
+    zIndex: 10,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusPillText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '600',
+  hamburgerLine: {
+    position: 'absolute',
+    width: 25,
+    height: 3,
+    backgroundColor: '#596778',
   },
 });

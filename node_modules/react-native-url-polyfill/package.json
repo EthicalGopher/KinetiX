@@ -1,0 +1,101 @@
+{
+  "name": "react-native-url-polyfill",
+  "version": "4.0.0",
+  "description": "A lightweight and trustworthy URL polyfill for React Native",
+  "keywords": [
+    "URL",
+    "URLSearchParams",
+    "polyfill",
+    "react native",
+    "whatwg-url"
+  ],
+  "bugs": {
+    "url": "https://github.com/charpeni/react-native-url-polyfill/issues"
+  },
+  "homepage": "https://github.com/charpeni/react-native-url-polyfill",
+  "readme": "https://github.com/charpeni/react-native-url-polyfill#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/charpeni/react-native-url-polyfill.git"
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "auto.js",
+    "js/URL.js",
+    "js/URL.d.ts",
+    "js/URLSearchParams.js",
+    "js/URLSearchParams.d.ts",
+    "js/ios10Fix.js"
+  ],
+  "scripts": {
+    "test": "jest",
+    "test:wpt": "jest OfficialWPT-test --runInBand",
+    "lint": "eslint .",
+    "type-check": "tsgo",
+    "build": "tsdown",
+    "prepare": "husky install",
+    "prepack": "yarn build",
+    "benchmark": "yarn build && npx --yes --loglevel error --package whatwg-url --package whatwg-url-minimum -- sh -c 'NODE_PATH=\"${PATH%%/node_modules/.bin*}/node_modules\" node scripts/benchmark.js \"$@\"' sh",
+    "benchmark:hermes": "yarn build && npx --yes --loglevel error --package whatwg-url-without-unicode --package whatwg-url-minimum -- sh -c 'NODE_PATH=\"${PATH%%/node_modules/.bin*}/node_modules\" node scripts/benchmark-hermes.js \"$@\"' sh",
+    "bundle-size": "node scripts/bundle-size",
+    "update-wpt": "node scripts/update-wpt",
+    "generate:wpt:react-native": "node scripts/wpt/generate-react-native-wpt.js"
+  },
+  "author": "Nicolas Charpentier <nicolas.charpentier079@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/plugin-transform-modules-commonjs": "^7.27.1",
+    "@babel/plugin-transform-typescript": "^7.28.0",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/eslint-config": "3.2.0",
+    "@react-native/babel-preset": "0.81.1",
+    "@types/node": "^22.13.10",
+    "@types/whatwg-url": "13.0.0",
+    "@typescript/native-preview": "7.0.0-dev.20260706.1",
+    "detox": "20.34.5",
+    "eslint": "8.56.0",
+    "eslint-plugin-ft-flow": "^3.0.11",
+    "eslint-plugin-prettier": "5.5.4",
+    "husky": "8.0.3",
+    "jest": "30.1.3",
+    "lint-staged": "15.2.0",
+    "nanoid": "3.3.11",
+    "prettier": "3.6.2",
+    "react": "19.1.1",
+    "react-native": "0.81.4",
+    "react-native-bundle-scale": "2.0.0",
+    "tsdown": "0.22.3",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "react-native": "*"
+  },
+  "jest": {
+    "preset": "react-native",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "mjs",
+      "cjs",
+      "jsx",
+      "json",
+      "node"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "./platforms/",
+      "/wpt/"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "eslint --fix"
+    ]
+  }
+}
