@@ -12,9 +12,12 @@ import { Camera, CameraView } from 'expo-camera';
 import {
   connectStreamSocket,
   disconnectStreamSocket,
+  disconnectMatchSocket,
   addStreamMessageListener,
+  addMatchMessageListener,
+  sendMatchMessage,
   sendStreamFrame,
-} from '../utils/matchmaking';
+} from '../../../utils/matchmaking';
 
 const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
@@ -37,6 +40,11 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 }) => {
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [opponentFrame, setOpponentFrame] = useState<string | null>(null);
+  const [selfScore, setSelfScore] = useState(0);
+  const [opponentScore, setOpponentScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(25);
+  const [matchEnded, setMatchEnded] = useState(false);
+  const matchEndedRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
   const streamListenerRef = useRef<(() => void) | null>(null);
 
@@ -48,16 +56,35 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
     if (mode === 'faceoff') {
       connectStreamSocket(opponentUsername, 'viewer');
-      streamListenerRef.current = addStreamMessageListener((msg) => {
+      streamListenerRef.current = addStreamMessageListener((msg: any) => {
         if (msg.type === 'frame' && msg.data) {
           setOpponentFrame(msg.data);
         }
       });
     }
 
+    const removeMatchListener = addMatchMessageListener((msg: any) => {
+      if (!matchEndedRef.current && msg.type === 'score' && typeof msg.score === 'number') {
+        setOpponentScore(msg.score);
+      }
+    });
+    const timer = setInterval(() => {
+      setTimeLeft((current) => {
+        if (current <= 1) {
+          matchEndedRef.current = true;
+          setMatchEnded(true);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
     return () => {
       if (streamListenerRef.current) streamListenerRef.current();
+      removeMatchListener();
+      clearInterval(timer);
       disconnectStreamSocket();
+      disconnectMatchSocket();
     };
   }, [opponentUsername, mode]);
 
@@ -66,6 +93,13 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'camera_frame' && data.frame) {
         sendStreamFrame(data.frame);
+      }
+      if (!matchEndedRef.current && data.type === 'SQUAT_REP') {
+        setSelfScore((current) => {
+          const nextScore = current + 1;
+          sendMatchMessage({ type: 'score', score: nextScore });
+          return nextScore;
+        });
       }
     } catch (e) {}
   }, []);
@@ -98,7 +132,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           <WebView
             ref={webViewRef}
             source={{
-              uri: `${SERVER_HOST}/match?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
+              uri: `${SERVER_HOST}/pose?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
               headers: { 'ngrok-skip-browser-warning': 'true' },
             }}
             userAgent="MobilePoseApp/1.0"
@@ -116,8 +150,10 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           />
         </View>
 
+        <ScoreBoard selfScore={selfScore} opponentScore={opponentScore} timeLeft={timeLeft} ended={matchEnded} />
+
         <View style={styles.bottomOverlay}>
-          <Text style={styles.matchStatusText}>QUICK PLAY MODE</Text>
+          <Text style={styles.matchStatusText}>QUICK START MATCH</Text>
           <TouchableOpacity
             style={styles.leaveButton}
             activeOpacity={0.8}
@@ -179,7 +215,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         <WebView
           ref={webViewRef}
           source={{
-            uri: `${SERVER_HOST}/match?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
+            uri: `${SERVER_HOST}/pose?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
             headers: { 'ngrok-skip-browser-warning': 'true' },
           }}
           userAgent="MobilePoseApp/1.0"
@@ -196,6 +232,8 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           onMessage={handleWebViewMessage}
         />
       </View>
+
+      <ScoreBoard selfScore={selfScore} opponentScore={opponentScore} timeLeft={timeLeft} ended={matchEnded} />
 
       {/* Bottom Overlay with Match Info */}
       <View style={styles.bottomOverlay}>
@@ -214,6 +252,28 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     </View>
   );
 };
+
+const ScoreBoard: React.FC<{
+  selfScore: number;
+  opponentScore: number;
+  timeLeft: number;
+  ended: boolean;
+}> = ({ selfScore, opponentScore, timeLeft, ended }) => (
+  <View style={styles.scoreBoard} pointerEvents="none">
+    <View style={styles.scorePlayer}>
+      <Text style={styles.scorePlayerLabel}>YOU</Text>
+      <Text style={styles.scoreValue}>{selfScore}</Text>
+    </View>
+    <View style={styles.scoreTimer}>
+      <Text style={styles.scoreTimerLabel}>{ended ? 'MATCH OVER' : 'TIME'}</Text>
+      <Text style={styles.scoreTimerValue}>{ended ? (selfScore > opponentScore ? 'WIN' : selfScore < opponentScore ? 'LOSE' : 'DRAW') : `${timeLeft}s`}</Text>
+    </View>
+    <View style={styles.scorePlayer}>
+      <Text style={styles.scorePlayerLabel}>OPPONENT</Text>
+      <Text style={styles.scoreValue}>{opponentScore}</Text>
+    </View>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -337,6 +397,51 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
+  },
+  scoreBoard: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  scorePlayer: {
+    alignItems: 'center',
+    minWidth: 88,
+  },
+  scorePlayerLabel: {
+    color: '#CBD5E1',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  scoreValue: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+  },
+  scoreTimer: {
+    alignItems: 'center',
+  },
+  scoreTimerLabel: {
+    color: '#FBBF24',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  scoreTimerValue: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
   },
   matchInfo: {
     flex: 1,

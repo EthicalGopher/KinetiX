@@ -11,7 +11,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera } from 'expo-camera';
-import type { MainTab } from './HomeScreen';
+import type { MainTab } from '../../../components/HomeScreen';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
@@ -61,6 +61,15 @@ const POSE_HTML_BUNDLE = `
       border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600;
       font-size: 13px; cursor: pointer;
     }
+
+    #squat-hud {
+      position: absolute; z-index: 10; top: 16px; left: 16px; min-width: 190px;
+      padding: 12px 14px; border: 1px solid rgba(255,255,255,.16);
+      border-radius: 14px; background: rgba(15,23,42,.78); color: #F8FAFC;
+      font-size: 12px; line-height: 1.7; backdrop-filter: blur(10px);
+    }
+    #squat-hud strong { color: #93C5FD; }
+    #squat-state { font-weight: 800; color: #10B981; }
   </style>
   <script>
     if (!navigator.mediaDevices) {
@@ -96,6 +105,13 @@ const POSE_HTML_BUNDLE = `
 
     <video id="video" playsinline webkit-playsinline muted></video>
     <canvas id="canvas"></canvas>
+    <div id="squat-hud">
+      <div><strong>STATE</strong> <span id="squat-state">UP</span></div>
+      <div><strong>REPS</strong> <span id="squat-reps">0</span></div>
+      <div><strong>KNEE</strong> <span id="squat-knee">--</span></div>
+      <div><strong>HIP</strong> <span id="squat-hip">--</span></div>
+      <div><strong>VISIBILITY</strong> <span id="squat-visibility">--</span></div>
+    </div>
   </div>
 
   <script>
@@ -142,6 +158,95 @@ const POSE_HTML_BUNDLE = `
           script.onerror = reject;
           document.head.appendChild(script);
         });
+      }
+    }
+
+    const REQUIRED_LANDMARKS = [11, 12, 23, 24, 25, 26, 27, 28];
+    const KNEE_UP_THRESHOLD = 160;
+    const KNEE_BOTTOM_THRESHOLD = 100;
+    const SMOOTHING_WINDOW = 5;
+    const DEBOUNCE_FRAMES = 5;
+    const kneeValues = [];
+    const hipValues = [];
+    const visibilityValues = [];
+    let confirmedState = 'UP';
+    let candidateState = null;
+    let candidateCount = 0;
+    let repCount = 0;
+    let reachedBottom = false;
+
+    function average(values, value) {
+      values.push(value);
+      if (values.length > SMOOTHING_WINDOW) values.shift();
+      return values.reduce((sum, item) => sum + item, 0) / values.length;
+    }
+
+    function angle(a, b, c) {
+      const ba = { x: a.x - b.x, y: a.y - b.y };
+      const bc = { x: c.x - b.x, y: c.y - b.y };
+      const radians = Math.atan2(bc.y, bc.x) - Math.atan2(ba.y, ba.x);
+      const degrees = Math.abs(radians * 180 / Math.PI);
+      return degrees > 180 ? 360 - degrees : degrees;
+    }
+
+    function classifyState(knee) {
+      if (confirmedState === 'UP') return knee >= KNEE_UP_THRESHOLD ? 'UP' : 'DOWN';
+      if (confirmedState === 'BOTTOM') return knee <= KNEE_BOTTOM_THRESHOLD ? 'BOTTOM' : 'DOWN';
+      if (knee <= KNEE_BOTTOM_THRESHOLD) return 'BOTTOM';
+      if (knee >= KNEE_UP_THRESHOLD) return 'UP';
+      return 'DOWN';
+    }
+
+    function updateState(rawState) {
+      if (rawState === confirmedState) {
+        candidateState = null;
+        candidateCount = 0;
+        return;
+      }
+      candidateCount = rawState === candidateState ? candidateCount + 1 : 1;
+      candidateState = rawState;
+      if (candidateCount < DEBOUNCE_FRAMES) return;
+
+      if (candidateState === 'BOTTOM') reachedBottom = true;
+      let completedRep = false;
+      if (candidateState === 'UP' && confirmedState === 'DOWN') {
+        if (reachedBottom) {
+          repCount += 1;
+          completedRep = true;
+        }
+        reachedBottom = false;
+      }
+      confirmedState = candidateState;
+      candidateState = null;
+      candidateCount = 0;
+      return completedRep;
+    }
+
+    function updateSquatHud(pose) {
+      const visibility = Math.min(...REQUIRED_LANDMARKS.map((index) => pose[index].visibility || 1));
+      const smoothVisibility = average(visibilityValues, visibility);
+      document.getElementById('squat-visibility').textContent = smoothVisibility.toFixed(2);
+      if (smoothVisibility < 0.5) {
+        candidateState = null;
+        candidateCount = 0;
+        document.getElementById('squat-knee').textContent = '--';
+        document.getElementById('squat-hip').textContent = '--';
+        return;
+      }
+
+      const leftKnee = angle(pose[23], pose[25], pose[27]);
+      const rightKnee = angle(pose[24], pose[26], pose[28]);
+      const leftHip = angle(pose[11], pose[23], pose[25]);
+      const rightHip = angle(pose[12], pose[24], pose[26]);
+      const smoothKnee = average(kneeValues, (leftKnee + rightKnee) / 2);
+      const smoothHip = average(hipValues, (leftHip + rightHip) / 2);
+      const completedRep = updateState(classifyState(smoothKnee));
+      document.getElementById('squat-state').textContent = confirmedState;
+      document.getElementById('squat-reps').textContent = repCount;
+      document.getElementById('squat-knee').textContent = smoothKnee.toFixed(1) + ' deg';
+      document.getElementById('squat-hip').textContent = smoothHip.toFixed(1) + ' deg';
+      if (completedRep && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount }));
       }
     }
 
@@ -198,6 +303,7 @@ const POSE_HTML_BUNDLE = `
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+            updateSquatHud(results.poseLandmarks[0]);
             ctx.lineWidth = 4.5;
             ctx.strokeStyle = '#6366F1';
             for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
@@ -230,6 +336,8 @@ const POSE_HTML_BUNDLE = `
               }));
             }
           } else {
+            document.getElementById('squat-state').textContent = 'NO PERSON';
+            document.getElementById('squat-visibility').textContent = '0.00';
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'NO_PERSON',
@@ -262,7 +370,9 @@ const POSE_HTML_BUNDLE = `
             navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
               currentStream = stream;
               video.srcObject = stream;
-              video.play();
+              video.play().catch((err) => {
+                console.warn('Camera playback could not start:', err);
+              });
               setProgress(95, 'Starting Neural Processing...');
 
               async function sendFrame() {

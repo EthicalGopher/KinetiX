@@ -89,6 +89,43 @@
       }
     }
 
+    const squatRequiredLandmarks = [11, 12, 23, 24, 25, 26, 27, 28];
+    const squatKneeValues = [];
+    let squatState = 'UP';
+    let squatCandidate = null;
+    let squatCandidateFrames = 0;
+    let squatReps = 0;
+    let squatReachedBottom = false;
+
+    function squatAverage(values, nextValue) {
+      values.push(nextValue);
+      if (values.length > 5) values.shift();
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function squatAngle(a, b, c) {
+      const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+      const degrees = Math.abs(radians * 180 / Math.PI);
+      return degrees > 180 ? 360 - degrees : degrees;
+    }
+
+    function trackSquat(pose) {
+      const visible = Math.min(...squatRequiredLandmarks.map(index => pose[index].visibility || 1));
+      if (visible < 0.5) return false;
+      const knee = squatAverage(squatKneeValues, (squatAngle(pose[23], pose[25], pose[27]) + squatAngle(pose[24], pose[26], pose[28])) / 2);
+      let nextState = squatState === 'UP' ? (knee >= 160 ? 'UP' : 'DOWN') : squatState === 'BOTTOM' ? (knee <= 100 ? 'BOTTOM' : 'DOWN') : knee <= 100 ? 'BOTTOM' : knee >= 160 ? 'UP' : 'DOWN';
+      if (nextState === squatState) { squatCandidate = null; squatCandidateFrames = 0; return false; }
+      squatCandidateFrames = nextState === squatCandidate ? squatCandidateFrames + 1 : 1;
+      squatCandidate = nextState;
+      if (squatCandidateFrames < 5) return false;
+      if (nextState === 'BOTTOM') squatReachedBottom = true;
+      const completed = nextState === 'UP' && squatState === 'DOWN' && squatReachedBottom;
+      if (completed) squatReps += 1;
+      if (nextState === 'UP' && squatState === 'DOWN') squatReachedBottom = false;
+      squatState = nextState; squatCandidate = null; squatCandidateFrames = 0;
+      return completed;
+    }
+
     async function initApp() {
       try {
         setProgress(40, 'Initializing Pose Model...');
@@ -136,6 +173,9 @@
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+            if (trackSquat(results.poseLandmarks[0]) && window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount: squatReps }));
+            }
             ctx.lineWidth = 4.5;
             ctx.strokeStyle = '#6366F1';
             for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
@@ -200,7 +240,7 @@
             navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
               currentStream = stream;
               video.srcObject = stream;
-              video.play();
+              video.play().catch((err) => console.warn('Camera playback could not start:', err));
               setProgress(95, 'Starting Neural Processing...');
 
               async function sendFrame() {

@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../../../utils/supabase';
+import { Avatar } from '../../../components/Avatar';
 
 interface AuthModalProps {
   visible: boolean;
@@ -30,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       if (session?.user) {
         setUser(session.user);
         setStep('profile');
@@ -38,7 +39,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       if (session?.user) {
         setUser(session.user);
         setStep('profile');
@@ -128,16 +129,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
           {user || step === 'profile' ? (
             <View style={styles.profileContainer}>
               <View style={styles.avatarLarge}>
-                <Text style={{ fontSize: 32 }}>👩‍🦰</Text>
+                <Avatar username={user?.user_metadata?.username || user?.email || username || 'guest'} size={72} />
               </View>
               <Text style={styles.userNameText}>{user.user_metadata?.username || username}</Text>
               <Text style={styles.userEmailText}>{user.email}</Text>
 
               <View style={styles.statusBadge}>
                 <View style={styles.greenDot} />
-                <Text style={styles.statusBadgeText}>
-                  {user.isFallback ? 'Active Session (Local Mode)' : 'Supabase Authenticated'}
-                </Text>
+                <Text style={styles.statusBadgeText}>Online</Text>
               </View>
 
               {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
@@ -228,7 +227,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                     <ActivityIndicator color="#FFF" />
                   ) : (
                     <Text style={styles.submitButtonText}>
-                      {isSignUp ? 'Sign Up with Supabase' : 'Sign In'}
+                      {isSignUp ? 'Sign Up' : 'Sign In'}
                     </Text>
                   )}
                 </TouchableOpacity>

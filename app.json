@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {

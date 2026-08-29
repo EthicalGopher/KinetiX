@@ -7,6 +7,7 @@ export type MatchMessage =
   | { type: 'matched'; match_id: string; role: 'player1' | 'player2'; opponent: string }
   | { type: 'frame'; data: string }
   | { type: 'pose'; landmarks: any[]; fps: number }
+  | { type: 'score'; score: number }
   | { type: 'leave' };
 
 export type QueueCounts = {
