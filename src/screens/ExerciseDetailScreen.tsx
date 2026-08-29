@@ -128,8 +128,8 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             <Text style={styles.matchmakingSectionHeader}>EXERCISE QUEUES</Text>
 
             {[
-              { id: 'faceoff', title: 'Faceoff', description: 'Live 1v1 match with form tracking', icon: '⚔️' },
-              { id: 'quick_start', title: 'Quick Start', description: 'Solo workout with form tracking', icon: '⚡' },
+              { id: 'faceoff', title: 'Faceoff', description: 'Live 1v1 video duel (both cameras visible)', icon: '⚔️' },
+              { id: 'quick_start', title: 'Quick Start', description: '1v1 private match (score battle, cameras hidden)', icon: '⚡' },
             ].map((queue) => (
               <View key={queue.id} style={styles.queueItemCard}>
                 <View style={styles.queueIconBox}>
@@ -143,7 +143,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   <Text style={styles.queueDescText}>{queue.description} for {exercise.name}</Text>
                 </View>
                 <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start')}>
-                  <Text style={styles.joinButtonText}>{queue.id === 'faceoff' ? 'PLAY' : 'START'}</Text>
+                  <Text style={styles.joinButtonText}>PLAY</Text>
                 </TouchableOpacity>
               </View>
             ))}

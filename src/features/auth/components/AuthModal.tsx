@@ -16,19 +16,30 @@ interface AuthModalProps {
   visible: boolean;
   onClose: () => void;
   onUserChange?: (user: any) => void;
+  initialMode?: 'signin' | 'signup';
 }
 
-type AuthStep = 'welcome' | 'auth' | 'profile';
+type AuthStep = 'welcome' | 'auth' | 'verify_email' | 'profile';
 
-export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserChange }) => {
-  const [step, setStep] = useState<AuthStep>('welcome');
-  const [isSignUp, setIsSignUp] = useState<boolean>(false);
+export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserChange, initialMode = 'signin' }) => {
+  const [step, setStep] = useState<AuthStep>('auth');
+  const [isSignUp, setIsSignUp] = useState<boolean>(initialMode === 'signup');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [username, setUsername] = useState<string>('chomuop');
   const [loading, setLoading] = useState<boolean>(false);
+  const [resending, setResending] = useState<boolean>(false);
+  const [resendStatus, setResendStatus] = useState<string>('');
   const [user, setUser] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  useEffect(() => {
+    if (visible) {
+      setIsSignUp(initialMode === 'signup');
+      setErrorMsg('');
+      setResendStatus('');
+    }
+  }, [visible, initialMode]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
@@ -44,6 +55,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         setUser(session.user);
         setStep('profile');
         if (onUserChange) onUserChange(session.user);
+      } else if (_event === 'SIGNED_OUT') {
+        setUser(null);
+        setStep('welcome');
+        if (onUserChange) onUserChange(null);
       }
     });
 
@@ -54,6 +69,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
 
   const handleAuth = async () => {
     setErrorMsg('');
+    setResendStatus('');
     if (!email || !password) {
       setErrorMsg('Please enter both email and password.');
       return;
@@ -71,12 +87,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         });
         if (error) {
           setErrorMsg(error.message);
-        } else {
+        } else if (data.session) {
+          // Auto-confirm enabled in Supabase
           setUser(data.user);
           setStep('profile');
           if (onUserChange) onUserChange(data.user);
+        } else {
+          // Email confirmation is required by Supabase!
+          // User must verify email before logging in.
+          setStep('verify_email');
         }
-       } else {
+      } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -90,9 +111,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         }
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Unexpected error during sign in');
+      setErrorMsg(err?.message || 'Unexpected error during authentication');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setResending(true);
+    setErrorMsg('');
+    setResendStatus('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      if (error) {
+        setErrorMsg(error.message);
+      } else {
+        setResendStatus('Verification email resent successfully! Check your inbox.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to resend verification email.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -115,15 +158,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         <View style={styles.modalCard}>
           <View style={styles.headerRow}>
             <Text style={styles.modalTitle}>
-              {user ? '👤 User Profile' : step === 'welcome' ? 'Welcome' : isSignUp ? 'Create Account' : 'Sign In'}
+              {user ? '👤 User Profile' : step === 'welcome' ? 'Welcome' : step === 'verify_email' ? '✉️ Verify Email' : isSignUp ? 'Create Account' : 'Sign In'}
             </Text>
-            {step === 'profile' && user ? (
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Text style={styles.closeBtnText}>✕</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={{ width: 28, height: 28 }} />
-            )}
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
           </View>
 
           {user || step === 'profile' ? (
@@ -131,8 +170,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
               <View style={styles.avatarLarge}>
                 <Avatar username={user?.user_metadata?.username || user?.email || username || 'guest'} size={72} />
               </View>
-              <Text style={styles.userNameText}>{user.user_metadata?.username || username}</Text>
-              <Text style={styles.userEmailText}>{user.email}</Text>
+              <Text style={styles.userNameText}>{user?.user_metadata?.username || username}</Text>
+              <Text style={styles.userEmailText}>{user?.email}</Text>
 
               <View style={styles.statusBadge}>
                 <View style={styles.greenDot} />
@@ -140,12 +179,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
               </View>
 
               {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-              {user.isFallback && (
-                <Text style={styles.keyTipText}>
-                  💡 Paste your real Supabase Anon Key in <Text style={{ color: '#FFF' }}>.env</Text> to sync with cloud DB.
-                </Text>
-              )}
 
               <TouchableOpacity
                 style={styles.signOutButton}
@@ -157,6 +190,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   <ActivityIndicator color="#FFF" />
                 ) : (
                   <Text style={styles.signOutButtonText}>Sign Out</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : step === 'verify_email' ? (
+            <View style={styles.verifyContainer}>
+              <View style={styles.verifyIconBadge}>
+                <Text style={{ fontSize: 32 }}>📬</Text>
+              </View>
+              <Text style={styles.verifyTitle}>Check Your Inbox</Text>
+              <Text style={styles.verifyDescription}>
+                We sent a verification link to:{'\n'}
+                <Text style={styles.verifyHighlightEmail}>{email}</Text>
+                {'\n\n'}
+                Please open the confirmation link in your email to activate your account, then proceed to sign in.
+              </Text>
+
+              {resendStatus ? <Text style={styles.successText}>{resendStatus}</Text> : null}
+              {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+              <TouchableOpacity
+                style={styles.getStartedButton}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setIsSignUp(false);
+                  setStep('auth');
+                  setErrorMsg('');
+                  setResendStatus('');
+                }}
+              >
+                <Text style={styles.getStartedButtonText}>Proceed to Sign In →</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.resendButton}
+                activeOpacity={0.8}
+                onPress={handleResendVerification}
+                disabled={resending}
+              >
+                {resending ? (
+                  <ActivityIndicator color="#94A3B8" size="small" />
+                ) : (
+                  <Text style={styles.resendButtonText}>Resend Verification Email</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -429,5 +504,57 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 12,
     fontWeight: '600',
+  },
+  verifyContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  verifyIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  verifyTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  verifyDescription: {
+    color: '#94A3B8',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  verifyHighlightEmail: {
+    color: '#60A5FA',
+    fontWeight: '700',
+  },
+  resendButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  resendButtonText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  successText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
   },
 });

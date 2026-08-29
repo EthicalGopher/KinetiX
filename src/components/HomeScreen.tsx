@@ -147,13 +147,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const handleJoinQueue = (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start') => {
-    if (!currentUser) {
-      onShowAuthModal();
-      return;
-    }
+    // Trigger matchmaking loading modal for 1v1 opponent search
+    onEnterQueue();
 
-    const userId = currentUser.user?.id || currentUser.id || `anon_${Date.now()}`;
-    connectMatchSocket(userId, exercise.id);
+    const userId =
+      currentUser?.user_metadata?.username ||
+      currentUser?.email ||
+      currentUser?.user?.id ||
+      currentUser?.id ||
+      `Player_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const matchQueueId = `${exercise.id}_${queue}`;
+    connectMatchSocket(userId, matchQueueId);
 
     const cleanup = addMatchMessageListener((msg) => {
       if (msg.type === 'matched') {

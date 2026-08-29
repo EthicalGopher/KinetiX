@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  Animated,
   StyleSheet,
   Text,
   View,
@@ -8,16 +9,13 @@ import {
   Image,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { Camera, CameraView } from 'expo-camera';
+import { Camera } from 'expo-camera';
 import {
-  connectStreamSocket,
-  disconnectStreamSocket,
   disconnectMatchSocket,
-  addStreamMessageListener,
   addMatchMessageListener,
   sendMatchMessage,
-  sendStreamFrame,
 } from '../../../utils/matchmaking';
+import { POSE_HTML_BUNDLE } from '../../camera/components/CameraScreen';
 
 const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
@@ -50,24 +48,23 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-
-    if (mode === 'faceoff') {
-      connectStreamSocket(opponentUsername, 'viewer');
-      streamListenerRef.current = addStreamMessageListener((msg: any) => {
-        if (msg.type === 'frame' && msg.data) {
-          setOpponentFrame(msg.data);
+      try {
+        if (Camera && Camera.requestCameraPermissionsAsync) {
+          const { status } = await Camera.requestCameraPermissionsAsync();
+          setHasPermission(status === 'granted');
         }
-      });
-    }
+      } catch (e) {}
+    })();
 
     const removeMatchListener = addMatchMessageListener((msg: any) => {
       if (!matchEndedRef.current && msg.type === 'score' && typeof msg.score === 'number') {
         setOpponentScore(msg.score);
       }
+      if (!matchEndedRef.current && mode === 'faceoff' && msg.type === 'frame' && msg.data) {
+        setOpponentFrame(msg.data);
+      }
     });
+
     const timer = setInterval(() => {
       setTimeLeft((current) => {
         if (current <= 1) {
@@ -80,10 +77,8 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     }, 1000);
 
     return () => {
-      if (streamListenerRef.current) streamListenerRef.current();
       removeMatchListener();
       clearInterval(timer);
-      disconnectStreamSocket();
       disconnectMatchSocket();
     };
   }, [opponentUsername, mode]);
@@ -91,8 +86,8 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   const handleWebViewMessage = useCallback((event: WebViewMessageEvent) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'camera_frame' && data.frame) {
-        sendStreamFrame(data.frame);
+      if (!matchEndedRef.current && mode === 'faceoff' && data.type === 'camera_frame' && data.frame) {
+        sendMatchMessage({ type: 'frame', data: data.frame });
       }
       if (!matchEndedRef.current && data.type === 'SQUAT_REP') {
         setSelfScore((current) => {
@@ -102,7 +97,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         });
       }
     } catch (e) {}
-  }, []);
+  }, [mode]);
 
   if (mode === 'quickjoin') {
     return (
@@ -110,35 +105,19 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         <StatusBar hidden />
 
         <View style={styles.yourContainerFull}>
-          <View style={styles.yourHeaderFull}>
-            <Text style={styles.yourLabel}>YOU</Text>
-            <View style={styles.liveIndicator}>
-              <View style={styles.redDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-          </View>
-
-          {hasPermission ? (
-            <CameraView
-              style={styles.cameraViewFull}
-              facing="front"
-            />
-          ) : (
-            <View style={styles.videoPlaceholderFull}>
-              <Text style={styles.placeholderText}>🔒 Camera access needed</Text>
-            </View>
-          )}
+          
 
           <WebView
             ref={webViewRef}
             source={{
-              uri: `${SERVER_HOST}/pose?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
-              headers: { 'ngrok-skip-browser-warning': 'true' },
+              html: POSE_HTML_BUNDLE,
+              baseUrl: 'https://cdn.jsdelivr.net',
             }}
             userAgent="MobilePoseApp/1.0"
-            style={styles.hiddenWebView}
+            style={StyleSheet.absoluteFillObject}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
+            mediaCapturePermissionGrantType="grant"
             javaScriptEnabled
             domStorageEnabled
             allowFileAccess
@@ -150,10 +129,16 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           />
         </View>
 
-        <ScoreBoard selfScore={selfScore} opponentScore={opponentScore} timeLeft={timeLeft} ended={matchEnded} />
+        <ScoreBoard
+          selfScore={selfScore}
+          opponentScore={opponentScore}
+          timeLeft={timeLeft}
+          ended={matchEnded}
+          selfUsername={selfUsername}
+          opponentUsername={opponentUsername}
+        />
 
         <View style={styles.bottomOverlay}>
-          <Text style={styles.matchStatusText}>QUICK START MATCH</Text>
           <TouchableOpacity
             style={styles.leaveButton}
             activeOpacity={0.8}
@@ -173,7 +158,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       {/* Opponent View - Right Side */}
       <View style={styles.opponentContainer}>
         <View style={styles.opponentHeader}>
-          <Text style={styles.opponentLabel}>OPPONENT</Text>
+          <Text style={styles.opponentLabel}>OPPONENT ({opponentUsername})</Text>
           <View style={styles.onlineIndicator}>
             <View style={styles.greenDot} />
             <Text style={styles.onlineText}>ONLINE</Text>
@@ -181,7 +166,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         </View>
         <View style={styles.videoPlaceholder}>
           {opponentFrame ? (
-            <Image source={{ uri: opponentFrame }} style={styles.opponentVideo} resizeMode="cover" />
+            <Image source={{ uri: opponentFrame }} style={styles.opponentVideo} resizeMode="contain" />
           ) : (
             <Text style={styles.placeholderText}>👤 Waiting for opponent feed...</Text>
           )}
@@ -193,35 +178,19 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
       {/* Your View - Left Side */}
       <View style={styles.yourContainer}>
-        <View style={styles.yourHeader}>
-          <Text style={styles.yourLabel}>YOU</Text>
-          <View style={styles.liveIndicator}>
-            <View style={styles.redDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
-
-        {hasPermission ? (
-          <CameraView
-            style={styles.cameraView}
-            facing="front"
-          />
-        ) : (
-          <View style={styles.videoPlaceholder}>
-            <Text style={styles.placeholderText}>🔒 Camera access needed</Text>
-          </View>
-        )}
+        
 
         <WebView
           ref={webViewRef}
           source={{
-            uri: `${SERVER_HOST}/pose?model=${selectedModel}&user=${encodeURIComponent(selfUsername)}`,
-            headers: { 'ngrok-skip-browser-warning': 'true' },
+            html: POSE_HTML_BUNDLE,
+            baseUrl: 'https://cdn.jsdelivr.net',
           }}
           userAgent="MobilePoseApp/1.0"
-          style={styles.hiddenWebView}
+          style={StyleSheet.absoluteFillObject}
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
+          mediaCapturePermissionGrantType="grant"
           javaScriptEnabled
           domStorageEnabled
           allowFileAccess
@@ -233,13 +202,20 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         />
       </View>
 
-      <ScoreBoard selfScore={selfScore} opponentScore={opponentScore} timeLeft={timeLeft} ended={matchEnded} />
+      <ScoreBoard
+        selfScore={selfScore}
+        opponentScore={opponentScore}
+        timeLeft={timeLeft}
+        ended={matchEnded}
+        selfUsername={selfUsername}
+        opponentUsername={opponentUsername}
+      />
 
       {/* Bottom Overlay with Match Info */}
       <View style={styles.bottomOverlay}>
         <View style={styles.matchInfo}>
-          <Text style={styles.matchStatusText}>MATCH FOUND</Text>
-          <Text style={styles.timerText}>00:00</Text>
+          <Text style={styles.matchStatusText}>FACEOFF 1v1 MATCH</Text>
+          <Text style={styles.timerText}>{timeLeft}s</Text>
         </View>
         <TouchableOpacity
           style={styles.leaveButton}
@@ -253,27 +229,166 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   );
 };
 
+// ---------------------------------------------------------------------------
+// Scoreboard
+// ---------------------------------------------------------------------------
+
+const SELF_COLOR = '#3B82F6';
+const OPPONENT_COLOR = '#EF4444';
+const WIN_COLOR = '#10B981';
+const LOSE_COLOR = '#EF4444';
+const DRAW_COLOR = '#FBBF24';
+const NEUTRAL_TIMER_COLOR = '#818CF8';
+
+/** Small bounce whenever `value` changes, skipping the initial mount. */
+function useBumpAnim(value: number): Animated.Value {
+  const scale = useRef(new Animated.Value(1)).current;
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    scale.setValue(1.28);
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 4,
+      tension: 140,
+      useNativeDriver: true,
+    }).start();
+  }, [value, scale]);
+
+  return scale;
+}
+
 const ScoreBoard: React.FC<{
   selfScore: number;
   opponentScore: number;
   timeLeft: number;
   ended: boolean;
-}> = ({ selfScore, opponentScore, timeLeft, ended }) => (
-  <View style={styles.scoreBoard} pointerEvents="none">
-    <View style={styles.scorePlayer}>
-      <Text style={styles.scorePlayerLabel}>YOU</Text>
-      <Text style={styles.scoreValue}>{selfScore}</Text>
+  selfUsername?: string;
+  opponentUsername?: string;
+}> = ({
+  selfScore,
+  opponentScore,
+  timeLeft,
+  ended,
+  selfUsername = 'user',
+  opponentUsername = 'opponent',
+}) => {
+  const selfScale = useBumpAnim(selfScore);
+  const opponentScale = useBumpAnim(opponentScore);
+  const pulseScale = useRef(new Animated.Value(1)).current;
+
+  const outcome: 'WIN' | 'LOSE' | 'DRAW' =
+    selfScore > opponentScore ? 'WIN' : selfScore < opponentScore ? 'LOSE' : 'DRAW';
+  const leader: 'self' | 'opponent' | null =
+    selfScore === opponentScore ? null : selfScore > opponentScore ? 'self' : 'opponent';
+  const urgent = !ended && timeLeft > 0 && timeLeft <= 5;
+
+  useEffect(() => {
+    if (!urgent) {
+      pulseScale.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseScale, { toValue: 1.12, duration: 320, useNativeDriver: true }),
+        Animated.timing(pulseScale, { toValue: 1, duration: 320, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [urgent, pulseScale]);
+
+  const timerColor = ended
+    ? outcome === 'WIN'
+      ? WIN_COLOR
+      : outcome === 'LOSE'
+      ? LOSE_COLOR
+      : DRAW_COLOR
+    : urgent
+    ? LOSE_COLOR
+    : timeLeft <= 10
+    ? DRAW_COLOR
+    : NEUTRAL_TIMER_COLOR;
+
+  return (
+    <View style={styles.scoreBoard} pointerEvents="none">
+      <PlayerBadge
+        isSelf
+        label="YOU"
+        username={selfUsername}
+        score={selfScore}
+        color={SELF_COLOR}
+        leading={!ended && leader === 'self'}
+        scale={selfScale}
+      />
+
+      <Animated.View
+        style={[
+          styles.timerBadge,
+          ended && styles.timerBadgeEnded,
+          { borderColor: timerColor },
+          ended && { backgroundColor: timerColor + '26' },
+          { transform: [{ scale: pulseScale }] },
+        ]}
+      >
+        {ended ? (
+          <Text style={[styles.timerOutcome, { color: timerColor }]} numberOfLines={1}>
+            {outcome}
+          </Text>
+        ) : (
+          <>
+            <Text style={[styles.timerValue, { color: timerColor }]}>{timeLeft}</Text>
+            <Text style={styles.timerUnit}>SEC</Text>
+          </>
+        )}
+      </Animated.View>
+
+      <PlayerBadge
+        label={(opponentUsername || 'OPPONENT').toUpperCase()}
+        username={opponentUsername}
+        score={opponentScore}
+        color={OPPONENT_COLOR}
+        leading={!ended && leader === 'opponent'}
+        scale={opponentScale}
+      />
     </View>
-    <View style={styles.scoreTimer}>
-      <Text style={styles.scoreTimerLabel}>{ended ? 'MATCH OVER' : 'TIME'}</Text>
-      <Text style={styles.scoreTimerValue}>{ended ? (selfScore > opponentScore ? 'WIN' : selfScore < opponentScore ? 'LOSE' : 'DRAW') : `${timeLeft}s`}</Text>
+  );
+};
+
+const PlayerBadge: React.FC<{
+  isSelf?: boolean;
+  label: string;
+  username: string;
+  score: number;
+  color: string;
+  leading: boolean;
+  scale: Animated.Value;
+}> = ({ isSelf = false, label, username, score, color, leading, scale }) => {
+  const initial = (username || '?').trim().charAt(0).toUpperCase() || '?';
+
+  return (
+    <View style={[styles.playerBadge, !isSelf && styles.playerBadgeReverse]}>
+      <View style={styles.avatarWrap}>
+        {leading && <Text style={styles.crown}>👑</Text>}
+        <View style={[styles.avatar, { borderColor: color, backgroundColor: color + '26' }]}>
+          <Text style={[styles.avatarInitial, { color }]}>{initial}</Text>
+        </View>
+      </View>
+      <View style={isSelf ? styles.playerTextLeft : styles.playerTextRight}>
+        <Text style={styles.playerLabel} numberOfLines={1}>
+          {label}
+        </Text>
+        <Animated.Text style={[styles.playerScore, { color, transform: [{ scale }] }]}>
+          {score}
+        </Animated.Text>
+      </View>
     </View>
-    <View style={styles.scorePlayer}>
-      <Text style={styles.scorePlayerLabel}>OPPONENT</Text>
-      <Text style={styles.scoreValue}>{opponentScore}</Text>
-    </View>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -398,51 +513,117 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
   },
+
+  // ---- Scoreboard ----
   scoreBoard: {
     position: 'absolute',
     top: 12,
-    left: 12,
-    right: 12,
+    left: '30%',
     zIndex: 20,
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  scorePlayer: {
-    alignItems: 'center',
-    minWidth: 88,
-  },
-  scorePlayerLabel: {
-    color: '#CBD5E1',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  scoreValue: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  scoreTimer: {
+  playerBadge: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  scoreTimerLabel: {
-    color: '#FBBF24',
-    fontSize: 9,
+  playerBadgeReverse: {
+    flexDirection: 'row-reverse',
+  },
+  avatarWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 14,
     fontWeight: '800',
-    letterSpacing: 1,
   },
-  scoreTimerValue: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  crown: {
+    position: 'absolute',
+    top: -15,
+    alignSelf: 'center',
+    fontSize: 13,
+    zIndex: 5,
+  },
+  playerTextLeft: {
+    marginLeft: 8,
+    alignItems: 'flex-start',
+  },
+  playerTextRight: {
+    marginRight: 8,
+    alignItems: 'flex-end',
+  },
+  playerLabel: {
+    maxWidth: 76,
+    color: '#94A3B8',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  playerScore: {
+    marginTop: 1,
+    fontSize: 24,
     fontWeight: '900',
+    fontVariant: ['tabular-nums'],
   },
+  timerBadge: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
+    marginHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  timerBadgeEnded: {
+    width: undefined,
+    height: undefined,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  timerValue: {
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  timerUnit: {
+    marginTop: -1,
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    color: '#64748B',
+  },
+  timerOutcome: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
   matchInfo: {
     flex: 1,
     alignItems: 'center',

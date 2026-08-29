@@ -5,9 +5,30 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body, html { width: 100%; height: 100%; overflow: hidden; background-color: #0F172A; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-    video { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); pointer-events: none; }
+    #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #000; }
+    video { position: absolute; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+    canvas { position: absolute; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); pointer-events: none; }
+    
+    #squat-hud {
+      position: absolute; z-index: 10; top: 16px; left: 16px; min-width: 190px;
+      padding: 12px 14px; border: 1px solid rgba(255,255,255,.16);
+      border-radius: 14px; background: rgba(15,23,42,.78); color: #F8FAFC;
+      font-size: 12px; line-height: 1.7; backdrop-filter: blur(10px);
+    }
+    #squat-hud strong { color: #93C5FD; }
+    #squat-state { font-weight: 800; color: #60A5FA; }
+    #squat-depth { font-weight: 700; color: #F59E0B; }
+
+    #squat-state-pill {
+      position: absolute; z-index: 10; top: 16px; left: 50%; transform: translateX(-50%);
+      padding: 8px 22px; border-radius: 24px; font-weight: 800; font-size: 13px;
+      letter-spacing: 0.8px; text-transform: uppercase; display: flex; align-items: center;
+      gap: 8px; backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4); transition: all 0.2s ease;
+    }
+    .state-top { background: rgba(37, 99, 235, 0.85); color: #FFFFFF; border-color: #60A5FA; }
+    .state-down { background: rgba(245, 158, 11, 0.85); color: #FFFFFF; border-color: #FCD34D; }
+    .state-bottom { background: rgba(16, 185, 129, 0.9); color: #FFFFFF; border-color: #34D399; }
     
     #loader-overlay {
       position: absolute; z-index: 20; width: 85%; max-width: 360px;
@@ -58,6 +79,20 @@
 
     <video id="video" playsinline webkit-playsinline muted></video>
     <canvas id="canvas"></canvas>
+
+    <div id="squat-state-pill" class="state-top">
+      <span id="squat-state-emoji">🟢</span>
+      <span id="squat-state-text">TOP</span>
+    </div>
+
+    <div id="squat-hud">
+      <div><strong>STATE</strong> <span id="squat-state">TOP</span></div>
+      <div><strong>DEPTH</strong> <span id="squat-depth">Standing</span></div>
+      <div><strong>REPS</strong> <span id="squat-reps">0</span></div>
+      <div><strong>KNEE</strong> <span id="squat-knee">--</span></div>
+      <div><strong>HIP</strong> <span id="squat-hip">--</span></div>
+      <div><strong>VISIBILITY</strong> <span id="squat-visibility">--</span></div>
+    </div>
   </div>
 
   <script>
@@ -74,6 +109,8 @@
     let currentProgress = 10;
     let poseInstance = null;
     let selectedComplexity = 1;
+    let lastFramePostTime = 0;
+    let offscreenCanvas = null;
 
     function setProgress(pct, statusMsg, isError = false) {
       currentProgress = Math.max(currentProgress, Math.min(100, pct));
@@ -92,7 +129,8 @@
     const squatRequiredLandmarks = [11, 12, 23, 24, 25, 26, 27, 28];
     const squatKneeValues = [];
     const squatHipValues = [];
-    let squatState = 'UP';
+    const squatVisibilityValues = [];
+    let squatState = 'TOP';
     let squatCandidate = null;
     let squatCandidateFrames = 0;
     let squatReps = 0;
@@ -110,44 +148,145 @@
       return degrees > 180 ? 360 - degrees : degrees;
     }
 
-    function updateSquatState(knee) {
-      let nextState = squatState === 'UP'
-        ? (knee >= 160 ? 'UP' : 'DOWN')
-        : squatState === 'BOTTOM'
-          ? (knee <= 100 ? 'BOTTOM' : 'DOWN')
-          : knee <= 100 ? 'BOTTOM' : knee >= 160 ? 'UP' : 'DOWN';
+    function updateSquatUI(state, knee, hip, smoothVis) {
+      const kEl = document.getElementById('squat-knee');
+      const hEl = document.getElementById('squat-hip');
+      const sEl = document.getElementById('squat-state');
+      const rEl = document.getElementById('squat-reps');
+      const dEl = document.getElementById('squat-depth');
+      const pillEl = document.getElementById('squat-state-pill');
+      const pillTxt = document.getElementById('squat-state-text');
+      const pillEmoji = document.getElementById('squat-state-emoji');
+
+      if (kEl) kEl.textContent = knee !== null ? knee.toFixed(1) + '°' : '--';
+      if (hEl) hEl.textContent = hip !== null ? hip.toFixed(1) + '°' : '--';
+      if (rEl) rEl.textContent = squatReps;
+
+      if (sEl) {
+        sEl.textContent = state;
+        if (state === 'TOP') sEl.style.color = '#60A5FA';
+        else if (state === 'DOWN') sEl.style.color = '#FBBF24';
+        else if (state === 'BOTTOM') sEl.style.color = '#10B981';
+      }
+
+      if (dEl) {
+        if (state === 'TOP') dEl.textContent = 'Standing Upright';
+        else if (state === 'DOWN') dEl.textContent = squatReachedBottom ? 'Ascending ⬆️' : 'Descending ⬇️';
+        else if (state === 'BOTTOM') dEl.textContent = 'Parallel Depth ✅';
+      }
+
+      if (pillEl && pillTxt && pillEmoji) {
+        if (state === 'TOP') {
+          pillEl.className = 'state-top';
+          pillEmoji.textContent = '🟢';
+          pillTxt.textContent = 'TOP';
+        } else if (state === 'DOWN') {
+          pillEl.className = 'state-down';
+          pillEmoji.textContent = '🟡';
+          pillTxt.textContent = squatReachedBottom ? 'DOWN (ASCENDING)' : 'DOWN (DESCENDING)';
+        } else if (state === 'BOTTOM') {
+          pillEl.className = 'state-bottom';
+          pillEmoji.textContent = '🟣';
+          pillTxt.textContent = 'BOTTOM (DEPTH OK)';
+        }
+      }
+    }
+
+    function trackSquat(pose) {
+      const visible = Math.min(...squatRequiredLandmarks.map(index => pose[index].visibility || 1));
+      const smoothVis = squatAverage(squatVisibilityValues, visible);
+      const visEl = document.getElementById('squat-visibility');
+      if (visEl) visEl.textContent = smoothVis.toFixed(2);
+
+      if (smoothVis < 0.5) {
+        squatCandidate = null;
+        squatCandidateFrames = 0;
+        updateSquatUI(squatState, null, null, smoothVis);
+        return false;
+      }
+
+      const leftKnee = squatAngle(pose[23], pose[25], pose[27]);
+      const rightKnee = squatAngle(pose[24], pose[26], pose[28]);
+      const leftHip = squatAngle(pose[11], pose[23], pose[25]);
+      const rightHip = squatAngle(pose[12], pose[24], pose[26]);
+      const knee = squatAverage(squatKneeValues, (leftKnee + rightKnee) / 2);
+      const hip = squatAverage(squatHipValues, (leftHip + rightHip) / 2);
+
+      let instantState = knee <= 95 ? 'BOTTOM' : knee >= 155 ? 'TOP' : 'DOWN';
+      
+      let nextState = instantState;
+      if (squatState === 'TOP') {
+        nextState = knee >= 155 ? 'TOP' : 'DOWN';
+      } else if (squatState === 'BOTTOM') {
+        nextState = knee <= 100 ? 'BOTTOM' : 'DOWN';
+      } else {
+        if (knee <= 95) nextState = 'BOTTOM';
+        else if (knee >= 155) nextState = 'TOP';
+        else nextState = 'DOWN';
+      }
+
+      updateSquatUI(instantState, knee, hip, smoothVis);
+
       if (nextState === squatState) {
         squatCandidate = null;
         squatCandidateFrames = 0;
         return false;
       }
+
       squatCandidateFrames = nextState === squatCandidate ? squatCandidateFrames + 1 : 1;
       squatCandidate = nextState;
-      if (squatCandidateFrames < 5) return false;
+      if (squatCandidateFrames < 4) return false;
+
       if (nextState === 'BOTTOM') squatReachedBottom = true;
-      const completed = nextState === 'UP' && squatState === 'DOWN' && squatReachedBottom;
-      if (completed) squatReps += 1;
-      if (nextState === 'UP' && squatState === 'DOWN') squatReachedBottom = false;
+      const completed = nextState === 'TOP' && squatState === 'DOWN' && squatReachedBottom;
+      if (completed) {
+        squatReps += 1;
+        const rEl = document.getElementById('squat-reps');
+        if (rEl) rEl.textContent = squatReps;
+      }
+      if (nextState === 'TOP' && squatState === 'DOWN') {
+        squatReachedBottom = false;
+      }
       squatState = nextState;
       squatCandidate = null;
       squatCandidateFrames = 0;
       return completed;
     }
 
-    function trackSquat(pose) {
-      const visible = Math.min(...squatRequiredLandmarks.map(index => pose[index].visibility || 1));
-      if (visible < 0.5) return false;
-      const knee = squatAverage(squatKneeValues, (squatAngle(pose[23], pose[25], pose[27]) + squatAngle(pose[24], pose[26], pose[28])) / 2);
-      squatAverage(squatHipValues, (squatAngle(pose[11], pose[23], pose[25]) + squatAngle(pose[12], pose[24], pose[26])) / 2);
-      return updateSquatState(knee);
+    async function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.crossOrigin = 'anonymous';
+        script.onload = () => resolve();
+        script.onerror = (e) => reject(new Error('Failed to load script: ' + url));
+        document.head.appendChild(script);
+      });
     }
 
     async function initApp() {
       try {
-        setProgress(40, 'Initializing Pose Model...');
+        setProgress(30, 'Loading Pose Model Assets...');
+
+        if (typeof window.Camera === 'undefined') {
+          try {
+            await loadScript('/static/camera_utils.js');
+          } catch (e) {
+            await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js');
+          }
+        }
 
         if (typeof window.Pose === 'undefined') {
-          throw new Error('Pose library failed to load');
+          setProgress(50, 'Downloading Pose Tracker...');
+          try {
+            await loadScript('/static/pose.js');
+          } catch (e) {
+            await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js');
+          }
+        }
+
+        if (typeof window.Pose === 'undefined') {
+          throw new Error('Pose library failed to initialize');
         }
 
         const POSE_CONNECTIONS = [
@@ -160,7 +299,7 @@
 
         poseInstance = new window.Pose({
           locateFile: (file) => {
-            setProgress(70, 'Downloading Model Asset: ' + file);
+            setProgress(70, 'Loading Neural Weights: ' + file);
             return '/static/' + file;
           }
         });
@@ -189,7 +328,10 @@
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           if (results.poseLandmarks && results.poseLandmarks.length > 0) {
-            if (trackSquat(results.poseLandmarks[0]) && window.ReactNativeWebView) {
+            const landmarks = Array.isArray(results.poseLandmarks[0])
+              ? results.poseLandmarks[0]
+              : results.poseLandmarks;
+            if (trackSquat(landmarks) && window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount: squatReps }));
             }
             ctx.lineWidth = 4.5;
@@ -222,6 +364,25 @@
                 type: 'POSE_DETECTED',
                 count: results.poseLandmarks.length
               }));
+
+              const now = Date.now();
+              if (now - lastFramePostTime > 150) {
+                lastFramePostTime = now;
+                try {
+                  if (!offscreenCanvas) {
+                    offscreenCanvas = document.createElement('canvas');
+                    offscreenCanvas.width = 320;
+                    offscreenCanvas.height = 240;
+                  }
+                  const offCtx = offscreenCanvas.getContext('2d');
+                  offCtx.drawImage(video, 0, 0, 320, 240);
+                  const frameData = offscreenCanvas.toDataURL('image/jpeg', 0.4);
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'camera_frame',
+                    frame: frameData
+                  }));
+                } catch (e) {}
+              }
             }
           } else {
             if (window.ReactNativeWebView) {
@@ -246,8 +407,8 @@
           const constraints = {
             video: {
               facingMode: facingMode,
-              width: { ideal: 640 },
-              height: { ideal: 480 }
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
             },
             audio: false
           };
@@ -256,6 +417,9 @@
             navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
               currentStream = stream;
               video.srcObject = stream;
+              video.onloadedmetadata = () => {
+                resizeCanvas();
+              };
               video.play().catch((err) => console.warn('Camera playback could not start:', err));
               setProgress(95, 'Starting Neural Processing...');
 
@@ -302,8 +466,13 @@
     }
 
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      if (video && video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      } else {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();

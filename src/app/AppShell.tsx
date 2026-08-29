@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'rea
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
+import { GetStartedScreen } from '../screens/GetStartedScreen';
 import { HomeScreen } from '../components/HomeScreen';
 import { AuthModal } from '../features/auth/components/AuthModal';
 import { CameraScreen } from '../features/camera/components/CameraScreen';
@@ -12,6 +13,7 @@ import { TabBar } from '../components/TabBar';
 import type { MainTab } from '../components/HomeScreen';
 import type { ModelComplexity } from '../utils/deviceSpecs';
 import { disconnectMatchSocket } from '../utils/matchmaking';
+import { supabase } from '../utils/supabase';
 
 export default function AppShell() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -22,7 +24,31 @@ export default function AppShell() {
   const [selectedModel, setSelectedModel] = useState<ModelComplexity>('medium');
   const [activeTab, setActiveTab] = useState<MainTab>('home');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCurrentUser(session.user);
+      }
+      setIsAuthLoading(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user);
+        setShowAuthModal(false);
+      } else if (_event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     async function updateOrientation() {
@@ -42,16 +68,41 @@ export default function AppShell() {
     updateOrientation();
   }, [isFullscreen]);
 
+  if (isAuthLoading) {
+    return (
+      <SafeAreaProvider>
+        <View style={[styles.container, styles.centerLoading]}>
+          <ActivityIndicator size="large" color="#0F766E" />
+          <Text style={styles.loadingText}>Loading plato...</Text>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
-        {isFullscreen ? (
+        {!currentUser ? (
+          /* Authentication Gatekeeper: User must sign up / log in to proceed */
+          <View style={{ flex: 1 }}>
+            <GetStartedScreen
+              onGetStarted={() => {
+                setAuthMode('signup');
+                setShowAuthModal(true);
+              }}
+              onLogIn={() => {
+                setAuthMode('signin');
+                setShowAuthModal(true);
+              }}
+            />
+          </View>
+        ) : isFullscreen ? (
           isMatchCamera ? (
             <MatchCameraScreen
               selectedModel={selectedModel}
               mode={matchMode}
               opponentUsername={opponentUsername}
-              selfUsername={currentUser?.email || 'user'}
+              selfUsername={currentUser?.user_metadata?.username || currentUser?.email || 'user'}
               onClose={() => {
                 setIsMatchCamera(false);
                 setIsFullscreen(false);
@@ -87,7 +138,10 @@ export default function AppShell() {
                 disconnectMatchSocket();
                 setMatchWaiting(false);
               }}
-              onShowAuthModal={() => setShowAuthModal(true)}
+              onShowAuthModal={() => {
+                setAuthMode('signin');
+                setShowAuthModal(true);
+              }}
               currentUser={currentUser}
               selectedModel={selectedModel}
               onSelectModel={setSelectedModel}
@@ -96,15 +150,22 @@ export default function AppShell() {
             <TabBar
               activeTab={activeTab}
               onTabPress={(tab) => setActiveTab(tab)}
-              onProfilePress={() => setShowAuthModal(true)}
+              onProfilePress={() => {
+                setAuthMode('signin');
+                setShowAuthModal(true);
+              }}
             />
           </View>
         )}
 
         <AuthModal
           visible={showAuthModal}
+          initialMode={authMode}
           onClose={() => setShowAuthModal(false)}
-          onUserChange={setCurrentUser}
+          onUserChange={(user) => {
+            setCurrentUser(user);
+            if (user) setShowAuthModal(false);
+          }}
         />
 
         {matchWaiting && (
@@ -183,5 +244,16 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 14,
     fontWeight: '700',
+  },
+  centerLoading: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0D111A',
+  },
+  loadingText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 14,
   },
 });
