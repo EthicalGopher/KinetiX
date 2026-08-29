@@ -14,6 +14,7 @@ import type { MainTab } from '../components/HomeScreen';
 import type { ModelComplexity } from '../utils/deviceSpecs';
 import { disconnectMatchSocket } from '../utils/matchmaking';
 import { supabase } from '../utils/supabase';
+import { useUserStore } from '../store/userStore';
 
 export default function AppShell() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -22,16 +23,18 @@ export default function AppShell() {
   const [opponentUsername, setOpponentUsername] = useState<string>('');
   const [matchMode, setMatchMode] = useState<'faceoff' | 'quickjoin'>('faceoff');
   const [selectedModel, setSelectedModel] = useState<ModelComplexity>('medium');
-  const [activeTab, setActiveTab] = useState<MainTab>('home');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
+  const { activeTab, setActiveTab, setUser } = useUserStore();
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setCurrentUser(session.user);
+        setUser(session.user);
       }
       setIsAuthLoading(false);
     });
@@ -39,16 +42,18 @@ export default function AppShell() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setCurrentUser(session.user);
+        setUser(session.user);
         setShowAuthModal(false);
       } else if (_event === 'SIGNED_OUT') {
         setCurrentUser(null);
+        setUser(null);
       }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     async function updateOrientation() {
@@ -145,14 +150,17 @@ export default function AppShell() {
               currentUser={currentUser}
               selectedModel={selectedModel}
               onSelectModel={setSelectedModel}
+              onLogout={() => {
+                setCurrentUser(null);
+                setActiveTab('home');
+              }}
             />
 
             <TabBar
               activeTab={activeTab}
               onTabPress={(tab) => setActiveTab(tab)}
               onProfilePress={() => {
-                setAuthMode('signin');
-                setShowAuthModal(true);
+                setActiveTab('profile');
               }}
             />
           </View>

@@ -23,6 +23,7 @@ import { useMatchmakingStore } from '../store/matchmakingStore';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { ExercisesScreen } from '../screens/ExercisesScreen';
 import { HomeFeedScreen } from '../screens/HomeFeedScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { Header } from './Header';
 
 export type MainTab = 'home' | 'explore' | 'workouts' | 'social' | 'profile';
@@ -63,6 +64,7 @@ interface HomeScreenProps {
   currentUser: any;
   selectedModel: ModelComplexity;
   onSelectModel: (model: ModelComplexity) => void;
+  onLogout?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -76,6 +78,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   currentUser,
   selectedModel,
   onSelectModel,
+  onLogout,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('feed');
   const [selectedCategory, setSelectedCategory] = useState<ExerciseCategory>('all');
@@ -207,9 +210,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       );
     }
 
+    if (activeTab === 'profile') {
+      return (
+        <ProfileScreen
+          currentUser={currentUser}
+          onBack={() => onTabChange('home')}
+          onLogout={onLogout || (() => {})}
+        />
+      );
+    }
+
     if (activeTab !== 'home') {
       return renderUnderDevelopment(
-        activeTab === 'explore' ? 'Explore Section' : activeTab === 'social' ? 'Friends & Leaderboards' : 'User Profile & Inventory'
+        activeTab === 'explore' ? 'Explore Section' : 'Friends & Leaderboards'
       );
     }
 
@@ -227,7 +240,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onBack={() => setSelectedExercise(null)}
       />
     );
-  }, [activeSubTab, activeTab, detailSubTab, onlineCount, onOpenCamera, queueCounts, selectedCategory, selectedExercise, selectedModel]);
+  }, [activeSubTab, activeTab, currentUser, detailSubTab, onlineCount, onLogout, onOpenCamera, onTabChange, queueCounts, selectedCategory, selectedExercise, selectedModel]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -237,7 +250,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <Header
           username={currentUser?.user_metadata?.username || currentUser?.email || 'guest'}
           onlineCount={onlineCount}
-          onProfilePress={onShowAuthModal}
+          onProfilePress={() => onTabChange('profile')}
         />
       )}
 
