@@ -7,6 +7,7 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { supabase } from '../utils/supabase';
 
@@ -16,7 +17,10 @@ interface AuthModalProps {
   onUserChange?: (user: any) => void;
 }
 
+type AuthStep = 'welcome' | 'auth' | 'profile';
+
 export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserChange }) => {
+  const [step, setStep] = useState<AuthStep>('welcome');
   const [isSignUp, setIsSignUp] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -27,13 +31,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (onUserChange) onUserChange(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+        setStep('profile');
+        if (onUserChange) onUserChange(session.user);
+      }
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (onUserChange) onUserChange(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+        setStep('profile');
+        if (onUserChange) onUserChange(session.user);
+      }
     });
 
     return () => {
@@ -59,46 +69,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
           },
         });
         if (error) {
-          const fallbackUser = {
-            id: 'usr_' + Date.now(),
-            email: email,
-            user_metadata: { username: username || 'chomuop' },
-            isFallback: true,
-          };
-          setUser(fallbackUser);
-          if (onUserChange) onUserChange(fallbackUser);
+          setErrorMsg(error.message);
         } else {
           setUser(data.user);
+          setStep('profile');
           if (onUserChange) onUserChange(data.user);
         }
-      } else {
+       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) {
-          const fallbackUser = {
-            id: 'usr_' + Date.now(),
-            email: email,
-            user_metadata: { username: username || email.split('@')[0] || 'chomuop' },
-            isFallback: true,
-          };
-          setUser(fallbackUser);
-          if (onUserChange) onUserChange(fallbackUser);
+          setErrorMsg(error.message);
         } else {
           setUser(data.user);
+          setStep('profile');
           if (onUserChange) onUserChange(data.user);
         }
       }
     } catch (err: any) {
-      const fallbackUser = {
-        id: 'usr_' + Date.now(),
-        email: email,
-        user_metadata: { username: username || 'chomuop' },
-        isFallback: true,
-      };
-      setUser(fallbackUser);
-      if (onUserChange) onUserChange(fallbackUser);
+      setErrorMsg(err?.message || 'Unexpected error during sign in');
     } finally {
       setLoading(false);
     }
@@ -110,6 +101,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
       await supabase.auth.signOut();
     } catch (e) {}
     setUser(null);
+    setStep('welcome');
+    setEmail('');
+    setPassword('');
     if (onUserChange) onUserChange(null);
     setLoading(false);
   };
@@ -120,14 +114,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         <View style={styles.modalCard}>
           <View style={styles.headerRow}>
             <Text style={styles.modalTitle}>
-              {user ? '👤 User Profile' : isSignUp ? '📝 Create Account' : '🔑 Sign In'}
+              {user ? '👤 User Profile' : step === 'welcome' ? 'Welcome' : isSignUp ? 'Create Account' : 'Sign In'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
-            </TouchableOpacity>
+            {step === 'profile' && user ? (
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 28, height: 28 }} />
+            )}
           </View>
 
-          {user ? (
+          {user || step === 'profile' ? (
             <View style={styles.profileContainer}>
               <View style={styles.avatarLarge}>
                 <Text style={{ fontSize: 32 }}>👩‍🦰</Text>
@@ -141,6 +139,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   {user.isFallback ? 'Active Session (Local Mode)' : 'Supabase Authenticated'}
                 </Text>
               </View>
+
+              {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
               {user.isFallback && (
                 <Text style={styles.keyTipText}>
@@ -161,75 +161,91 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                 )}
               </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.formContainer}>
-              {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-              {isSignUp && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Username</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g. chomuop"
-                    placeholderTextColor="#64748B"
-                    value={username}
-                    onChangeText={setUsername}
-                  />
-                </View>
-              )}
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email Address</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="name@example.com"
-                  placeholderTextColor="#64748B"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="••••••••"
-                  placeholderTextColor="#64748B"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
+          ) : step === 'welcome' ? (
+            <View style={styles.welcomeContainer}>
+              <Text style={styles.welcomeSubtext}>
+                Join thousands of users tracking their fitness journey in real-time.
+              </Text>
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={styles.getStartedButton}
                 activeOpacity={0.85}
-                onPress={handleAuth}
-                disabled={loading}
+                onPress={() => setStep('auth')}
               >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.submitButtonText}>
-                    {isSignUp ? 'Sign Up with Supabase' : 'Sign In'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.switchModeButton}
-                onPress={() => {
-                  setErrorMsg('');
-                  setIsSignUp(!isSignUp);
-                }}
-              >
-                <Text style={styles.switchModeText}>
-                  {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-                </Text>
+                <Text style={styles.getStartedButtonText}>Get Started</Text>
               </TouchableOpacity>
             </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.formContainer}>
+                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+                {isSignUp && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Username</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="e.g. chomuop"
+                      placeholderTextColor="#64748B"
+                      value={username}
+                      onChangeText={setUsername}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="name@example.com"
+                    placeholderTextColor="#64748B"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="••••••••"
+                    placeholderTextColor="#64748B"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  activeOpacity={0.85}
+                  onPress={handleAuth}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>
+                      {isSignUp ? 'Sign Up with Supabase' : 'Sign In'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.switchModeButton}
+                  onPress={() => {
+                    setErrorMsg('');
+                    setIsSignUp(!isSignUp);
+                  }}
+                >
+                  <Text style={styles.switchModeText}>
+                    {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           )}
         </View>
       </View>
@@ -248,6 +264,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
+    maxHeight: '80%',
     backgroundColor: '#182030',
     borderRadius: 24,
     padding: 24,
@@ -272,6 +289,30 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 18,
     fontWeight: '600',
+  },
+  welcomeContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  welcomeSubtext: {
+    color: '#94A3B8',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  getStartedButton: {
+    backgroundColor: '#2563EB',
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  getStartedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   profileContainer: {
     alignItems: 'center',

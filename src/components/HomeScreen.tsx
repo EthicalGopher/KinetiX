@@ -10,6 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getDeviceInfo, getRecommendedModel, ModelComplexity } from '../utils/deviceSpecs';
+import {
+  fetchQueueCounts,
+  connectMatchSocket,
+  disconnectMatchSocket,
+  addMatchMessageListener,
+  connectPresenceSocket,
+  disconnectPresenceSocket,
+} from '../utils/matchmaking';
 
 export type MainTab = 'home' | 'explore' | 'workouts' | 'social' | 'profile';
 type SubTab = 'feed' | 'news';
@@ -27,7 +35,7 @@ interface ExerciseItem {
 }
 
 const EXERCISES_DATA: ExerciseItem[] = [
-  { id: '1', name: 'Squats AI', category: 'strength', icon: '🏋️', isFavorite: true, isNew: true, bgGradient: '#2563EB' },
+  { id: '1', name: 'Squats', category: 'strength', icon: '🏋️', isFavorite: true, isNew: true, bgGradient: '#2563EB' },
   { id: '2', name: 'Pushups', category: 'strength', icon: '💪', isFavorite: true, bgGradient: '#1D4ED8' },
   { id: '3', name: 'Lunges', category: 'strength', icon: '🦵', bgGradient: '#1E293B' },
   { id: '4', name: 'Plank Hold', category: 'flexibility', icon: '⏱️', isFavorite: true, bgGradient: '#0F172A' },
@@ -42,7 +50,11 @@ interface HomeScreenProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
   onOpenCamera: () => void;
+  onOpenMatchCamera: (opponent: string) => void;
+  onEnterQueue: () => void;
+  onCancelQueue: () => void;
   onShowAuthModal: () => void;
+  currentUser: any;
   selectedModel: ModelComplexity;
   onSelectModel: (model: ModelComplexity) => void;
 }
@@ -52,7 +64,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   activeTab,
   onTabChange,
   onOpenCamera,
+  onOpenMatchCamera,
+  onEnterQueue,
+  onCancelQueue,
   onShowAuthModal,
+  currentUser,
   selectedModel,
   onSelectModel,
 }) => {
@@ -64,6 +80,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [deviceName, setDeviceName] = useState<string>('Mobile Device');
   const [totalRamGb, setTotalRamGb] = useState<number>(4.0);
   const [recommendedModel, setRecommendedModel] = useState<ModelComplexity>('medium');
+   const [onlineCount, setOnlineCount] = useState<number>(0);
+   const [queueCounts, setQueueCounts] = useState<Record<string, number>>({});
+   const [isQueued, setIsQueued] = useState<boolean>(false);
+   const [matchState, setMatchState] = useState<'idle' | 'waiting' | 'matched'>('idle');
 
   // Dismissible feed banners state
   const [showIdBanner, setShowIdBanner] = useState<boolean>(true);
@@ -91,6 +111,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       setRecommendedModel('medium');
     }
   }, []);
+
+     useEffect(() => {
+       const userId = currentUser?.user?.id || currentUser?.id || undefined;
+       if (userId) {
+         connectPresenceSocket(userId);
+       }
+
+       const refreshCounts = async () => {
+         try {
+           const data = await fetchQueueCounts();
+           setOnlineCount(data.total_online);
+           setQueueCounts(data.exercise_counts);
+         } catch (e) {
+           console.log('[Matchmaking] fetch counts failed:', (e as Error).message);
+         }
+       };
+       refreshCounts();
+       const interval = setInterval(refreshCounts, 3000);
+       return () => {
+         clearInterval(interval);
+         disconnectPresenceSocket();
+       };
+     }, [currentUser]);
 
   const getModelTitle = (model: ModelComplexity) => {
     switch (model) {
@@ -138,9 +181,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     </View>
   );
 
-  const handleJoinQueue = () => {
-    setSelectedExercise(null);
-    onOpenCamera();
+  const handleJoinQueue = (exercise: ExerciseItem) => {
+    if (!currentUser) {
+      onShowAuthModal();
+      return;
+    }
+    onEnterQueue();
+    setIsQueued(true);
+    setMatchState('waiting');
+
+    const userId = currentUser.user?.id || currentUser.id || `anon_${Date.now()}`;
+    connectMatchSocket(userId, exercise.id);
+
+    const cleanup = addMatchMessageListener((msg) => {
+      if (msg.type === 'matched') {
+        setMatchState('matched');
+        onOpenMatchCamera(msg.opponent);
+        cleanup();
+        disconnectMatchSocket();
+      }
+    });
+  };
+
+  const handleCancelQueue = () => {
+    setIsQueued(false);
+    setMatchState('idle');
+    onCancelQueue();
   };
 
   /* EXERCISE DETAIL / MATCHMAKING QUEUES VIEW (Matches Reference Screenshot) */
@@ -247,8 +313,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <TouchableOpacity
               style={styles.createPrivateCard}
               activeOpacity={0.85}
-              onPress={handleJoinQueue}
-            >
+              onPress={() => handleJoinQueue(exercise)}
+>
               <View style={styles.crownIconBox}>
                 <Text style={{ fontSize: 26 }}>👑</Text>
               </View>
@@ -269,10 +335,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <Text style={styles.popularTagText}>Most Popular 🔥</Text>
                 </View>
                 <Text style={styles.queueDescText}>
-                  Live, {exercise.name} 1v1, AI Form Tracking, Normal Scoring
+                  Live, {exercise.name} 1v1, Form Tracking, Normal Scoring
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -288,7 +354,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Live, {exercise.name} 2v2 PRO, Precision Scoring
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -304,7 +370,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Live, {exercise.name} Strict Form, High Accuracy Scoring
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -320,7 +386,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Max Reps in 60s, Single Player, Leaderboard Ranked
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -336,7 +402,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Co-op Workout Challenge, Team Joint Tracking
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -352,7 +418,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Fast Tempo Mode, Live Rep Counter
                 </Text>
               </View>
-              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={handleJoinQueue}>
+              <TouchableOpacity style={styles.joinButton} activeOpacity={0.85} onPress={() => handleJoinQueue(exercise)}>
                 <Text style={styles.joinButtonText}>JOIN</Text>
               </TouchableOpacity>
             </View>
@@ -382,7 +448,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Text style={styles.tabInfoBody}>
               1. Stand 5-7 feet away from your phone camera in landscape mode.{'\n'}
               2. Ensure your full body is visible in the frame.{'\n'}
-              3. Perform your exercise reps cleanly. The AI MediaPipe tracker will automatically count reps & analyze form accuracy.
+               3. Perform your exercise reps cleanly. The MediaPipe tracker will automatically count reps & analyze form accuracy.
             </Text>
           </View>
         ) : (
@@ -465,7 +531,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </ScrollView>
       </View>
 
-      {/* Exercise Cards Grid */}
+              {/* Exercise Cards Grid */}
       <ScrollView
         style={styles.gridScrollView}
         contentContainerStyle={styles.gridScrollContent}
@@ -482,8 +548,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <View style={styles.heroTagBadge}>
                 <Text style={styles.heroTagBadgeText}>FEATURED EXERCISE</Text>
               </View>
-              <View style={styles.favHeartCircle}>
-                <Text style={{ fontSize: 13 }}>💙</Text>
+              <View style={styles.queueCountBadge}>
+                <Text style={{ fontSize: 11 }}>👥 {(queueCounts['1'] || 0).toString()}</Text>
               </View>
             </View>
 
@@ -492,7 +558,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
 
             <View style={styles.heroBottomRow}>
-              <Text style={styles.heroCardTitle}>Squats AI Pose Tracker</Text>
+              <Text style={styles.heroCardTitle}>Squats Pose Tracker</Text>
               <Text style={styles.heroCardSubtitle}>Tap to open exercise queues & modes</Text>
             </View>
           </View>
@@ -507,7 +573,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               activeOpacity={0.85}
               onPress={() => setSelectedExercise(item)}
             >
-              {/* Card Header row with optional Heart favorite */}
+              {/* Card Header row with queue count instead of heart */}
               <View style={styles.gridCardHeaderRow}>
                 {item.isNew ? (
                   <View style={styles.newMiniBadge}>
@@ -516,11 +582,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 ) : (
                   <View />
                 )}
-                {item.isFavorite && (
-                  <View style={styles.gridFavBadge}>
-                    <Text style={{ fontSize: 11 }}>💙</Text>
-                  </View>
-                )}
+                <View style={styles.gridFavBadge}>
+                  <Text style={{ fontSize: 11 }}>
+                    👥 {(queueCounts[item.id] || 0).toString()}
+                  </Text>
+                </View>
               </View>
 
               {/* Center Art Icon */}
@@ -563,7 +629,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <View style={styles.pointsBadge}>
             <View style={styles.greenDot} />
-            <Text style={styles.pointsText}>34184</Text>
+            <Text style={styles.pointsText}>{onlineCount}</Text>
             <Text style={styles.groupIcon}>👥</Text>
           </View>
         </View>
@@ -761,7 +827,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </View>
             </View>
 
-            {/* AI Pose Tracker Featured Launcher Card */}
+            {/* Pose Tracker Featured Launcher Card */}
             <TouchableOpacity
               style={styles.featuredCard}
               activeOpacity={0.9}
@@ -773,7 +839,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <Text style={{ fontSize: 26 }}>🤳</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={styles.aiCardTitle}>Test Live AI Camera</Text>
+                   <Text style={styles.aiCardTitle}>Live Camera</Text>
                   <Text style={styles.aiCardSubtitle}>
                     Real-time MediaPipe joint tracking ({getModelTitle(selectedModel)})
                   </Text>
@@ -961,7 +1027,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </Text>
               </View>
 
-              <Text style={styles.modelSectionHeading}>Select AI Pose Model:</Text>
+              <Text style={styles.modelSectionHeading}>Select Pose Model:</Text>
 
               <TouchableOpacity
                 style={[
@@ -1593,6 +1659,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   favHeartCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  queueCountBadge: {
     width: 28,
     height: 28,
     borderRadius: 14,

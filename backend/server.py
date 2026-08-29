@@ -4,7 +4,11 @@ import base64
 import cv2
 import numpy as np
 import time
+import json
+import uuid
+import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import mediapipe as mp
@@ -132,6 +136,187 @@ async def websocket_endpoint(websocket: WebSocket):
         print("\nClient disconnected")
     except Exception as e:
         print(f"\nError processing frame: {e}")
+
+# ============= MATCHMAKING SYSTEM =============
+
+class MatchmakingManager:
+    def __init__(self):
+        self.queues: dict[str, list] = {}
+        self.matches: dict[str, dict] = {}
+        self.online_users: set = set()
+        self.exercise_counts: dict[str, int] = {}
+
+    def join_queue(self, ws, user_id, exercise_id):
+        self.online_users.add(user_id)
+        queue = self.queues.setdefault(exercise_id, [])
+        queue.append({"ws": ws, "user_id": user_id})
+        self.exercise_counts[exercise_id] = len(queue)
+        print(f"👤 {user_id} joined queue for {exercise_id} (count: {len(queue)})")
+
+        if len(queue) >= 2:
+            player1 = queue.pop(0)
+            player2 = queue.pop(0)
+            match_id = str(uuid.uuid4())[:8]
+            self.matches[match_id] = {
+                "player1": player1,
+                "player2": player2,
+                "exercise_id": exercise_id,
+            }
+            self.exercise_counts[exercise_id] = len(queue)
+            print(f"🔗 Match #{match_id} created for exercise {exercise_id}")
+            return match_id, player1, player2
+        return None, None, None
+
+    def leave_queue(self, user_id, exercise_id=None):
+        self.online_users.discard(user_id)
+        if exercise_id:
+            queue = self.queues.get(exercise_id, [])
+            self.queues[exercise_id] = [p for p in queue if p["user_id"] != user_id]
+            self.exercise_counts[exercise_id] = len(self.queues[exercise_id])
+
+    def cancel_match(self, match_id):
+        match = self.matches.pop(match_id, None)
+        if match:
+            for p in [match["player1"], match["player2"]]:
+                self.leave_queue(p["user_id"], match["exercise_id"])
+
+    def get_counts(self):
+        return {
+            "total_online": len(self.online_users),
+            "exercise_counts": dict(self.exercise_counts),
+        }
+
+matchmaker = MatchmakingManager()
+
+@app.get("/api/online")
+async def get_online_count():
+    return JSONResponse(matchmaker.get_counts())
+
+@app.websocket("/ws/presence")
+async def presence_websocket(ws: WebSocket):
+    await ws.accept()
+    try:
+        init = await ws.receive_text()
+        data = json.loads(init)
+        user_id = data.get("user_id", f"anon_{uuid.uuid4().hex[:8]}")
+        matchmaker.online_users.add(user_id)
+        await ws.send_text(json.dumps({"type": "online", "total": len(matchmaker.online_users)}))
+
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        matchmaker.online_users.discard(user_id)
+        print(f"\n🔌 User {user_id} disconnected from presence")
+
+@app.websocket("/ws/match")
+async def match_websocket(ws: WebSocket):
+    await ws.accept()
+    user_id = None
+    exercise_id = None
+
+    try:
+        init = await ws.receive_text()
+        data = json.loads(init)
+        user_id = data.get("user_id", f"anon_{uuid.uuid4().hex[:8]}")
+        exercise_id = data.get("exercise_id", "1")
+        await ws.send_text(json.dumps({"type": "joined", "user_id": user_id}))
+
+        match_id, p1, p2 = matchmaker.join_queue(ws, user_id, exercise_id)
+
+        if match_id:
+            for player, role in [(p1, "player1"), (p2, "player2")]:
+                await player["ws"].send_text(json.dumps({
+                    "type": "matched",
+                    "match_id": match_id,
+                    "role": role,
+                    "opponent": p2["user_id"] if role == "player1" else p1["user_id"],
+                }))
+
+        while True:
+            msg = await ws.receive_text()
+            if match_id:
+                match = matchmaker.matches.get(match_id)
+                if match:
+                    opponent = match["player2"] if ws == match["player1"]["ws"] else match["player1"]
+                    try:
+                        await opponent["ws"].send_text(msg)
+                    except Exception as e:
+                        print(f"Error forwarding match data: {e}")
+    except WebSocketDisconnect:
+        matchmaker.leave_queue(user_id, exercise_id)
+        if match_id:
+            matchmaker.cancel_match(match_id)
+        print(f"\n🔌 User {user_id} disconnected from matchmaking")
+
+# ============= STREAMING SYSTEM (/{username} path) =============
+
+class StreamManager:
+    def __init__(self):
+        self.streams: dict[str, dict] = {}
+
+    def add_sender(self, username, ws):
+        if username not in self.streams:
+            self.streams[username] = {"senders": [], "viewers": []}
+        self.streams[username]["senders"].append(ws)
+        print(f"📺 Sender registered: {username}")
+
+    def add_viewer(self, username, ws):
+        if username not in self.streams:
+            self.streams[username] = {"senders": [], "viewers": []}
+        self.streams[username]["viewers"].append(ws)
+        print(f"👁️  Viewer registered for stream: {username}")
+
+    def remove_connection(self, username, ws):
+        if username not in self.streams:
+            return
+        self.streams[username]["senders"] = [w for w in self.streams[username]["senders"] if w is not ws]
+        self.streams[username]["viewers"] = [w for w in self.streams[username]["viewers"] if w is not ws]
+        if not self.streams[username]["senders"] and not self.streams[username]["viewers"]:
+            del self.streams[username]
+
+    def broadcast_to_viewers(self, username, msg):
+        if username not in self.streams:
+            return
+        viewers = self.streams[username]["viewers"]
+        for viewer_ws in viewers:
+            try:
+                if viewer_ws.application_state == "connected":
+                    import asyncio
+                    asyncio.create_task(viewer_ws.send_text(msg))
+            except Exception as e:
+                print(f"📡 Error broadcasting to viewer: {e}")
+
+stream_manager = StreamManager()
+
+@app.websocket("/ws/stream/{username}")
+async def stream_websocket(ws: WebSocket, username: str):
+    await ws.accept()
+    role = None
+
+    try:
+        init = await ws.receive_text()
+        data = json.loads(init)
+        role = data.get("role", "sender")
+
+        if role == "sender":
+            stream_manager.add_sender(username, ws)
+            await ws.send_text(json.dumps({"type": "stream_started", "username": username}))
+        elif role == "viewer":
+            stream_manager.add_viewer(username, ws)
+            await ws.send_text(json.dumps({"type": "viewing", "username": username}))
+
+        while True:
+            msg = await ws.receive_text()
+            if role == "sender":
+                stream_manager.broadcast_to_viewers(username, msg)
+            else:
+                await ws.send_text(json.dumps({"type": "error", "msg": "Viewers cannot send stream data"}))
+    except WebSocketDisconnect:
+        stream_manager.remove_connection(username, ws)
+        print(f"\n🔌 User {username} ({role}) disconnected from stream")
+    except Exception as e:
+        print(f"\nStream error: {e}")
+        stream_manager.remove_connection(username, ws)
 
 if __name__ == "__main__":
     import uvicorn
