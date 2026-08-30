@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../../utils/supabase';
 import { Avatar } from '../../../components/Avatar';
+import { generateRandomUsername } from '../../../utils/usernameGenerator';
 
 interface AuthModalProps {
   visible: boolean;
@@ -26,18 +27,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
   const [isSignUp, setIsSignUp] = useState<boolean>(initialMode === 'signup');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [username, setUsername] = useState<string>('chomuop');
+  const [username, setUsername] = useState<string>('');
+  const [fetchingUsername, setFetchingUsername] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [resending, setResending] = useState<boolean>(false);
   const [resendStatus, setResendStatus] = useState<string>('');
   const [user, setUser] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  const handleGenerateRandomUsername = async () => {
+    setFetchingUsername(true);
+    try {
+      const generated = await generateRandomUsername();
+      if (generated) setUsername(generated);
+    } finally {
+      setFetchingUsername(false);
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       setIsSignUp(initialMode === 'signup');
       setErrorMsg('');
       setResendStatus('');
+      if (initialMode === 'signup' && !username) {
+        handleGenerateRandomUsername();
+      }
     }
   }, [visible, initialMode]);
 
@@ -143,7 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
     setLoading(true);
     try {
       await supabase.auth.signOut();
-    } catch (e) {}
+    } catch (e) { }
     setUser(null);
     setStep('welcome');
     setEmail('');
@@ -256,13 +271,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
 
                 {isSignUp && (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Username</Text>
+                    <View style={styles.inputLabelRow}>
+                      <Text style={styles.inputLabel}>Username</Text>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        style={styles.randomizeBtn}
+                        onPress={handleGenerateRandomUsername}
+                        disabled={fetchingUsername}
+                      >
+                        {fetchingUsername ? (
+                          <ActivityIndicator size="small" color="#60A5FA" />
+                        ) : (
+                          <Text style={styles.randomizeBtnText}>🎲 Generate</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="e.g. chomuop"
+                      placeholder="e.g. whitefrog232"
                       placeholderTextColor="#64748B"
                       value={username}
                       onChangeText={setUsername}
+                      autoCapitalize="none"
                     />
                   </View>
                 )}
@@ -468,11 +498,29 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 14,
   },
+  inputLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   inputLabel: {
     color: '#CBD5E1',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 6,
+  },
+  randomizeBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  randomizeBtnText: {
+    color: '#818CF8',
+    fontSize: 11,
+    fontWeight: '800',
   },
   textInput: {
     backgroundColor: '#0F172A',

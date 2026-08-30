@@ -22,6 +22,7 @@ export default function AppShell() {
   const [matchWaiting, setMatchWaiting] = useState<boolean>(false);
   const [opponentUsername, setOpponentUsername] = useState<string>('');
   const [matchMode, setMatchMode] = useState<'faceoff' | 'quickjoin'>('faceoff');
+  const [matchExerciseId, setMatchExerciseId] = useState<string>('1');
   const [selectedModel, setSelectedModel] = useState<ModelComplexity>('medium');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -108,6 +109,7 @@ export default function AppShell() {
               mode={matchMode}
               opponentUsername={opponentUsername}
               selfUsername={currentUser?.user_metadata?.username || currentUser?.email || 'user'}
+              exerciseId={matchExerciseId}
               onClose={() => {
                 setIsMatchCamera(false);
                 setIsFullscreen(false);
@@ -131,10 +133,11 @@ export default function AppShell() {
               onOpenCamera={() => {
                 setIsFullscreen(true);
               }}
-              onOpenMatchCamera={(opponent: string, mode: 'faceoff' | 'quickjoin') => {
+              onOpenMatchCamera={(opponent: string, mode: 'faceoff' | 'quickjoin', exerciseId?: string) => {
                 setMatchWaiting(false);
                 setOpponentUsername(opponent);
                 setMatchMode(mode);
+                if (exerciseId) setMatchExerciseId(exerciseId);
                 setIsMatchCamera(true);
                 setIsFullscreen(true);
               }}

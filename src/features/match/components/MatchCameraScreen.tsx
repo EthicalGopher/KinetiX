@@ -16,6 +16,8 @@ import {
   sendMatchMessage,
 } from '../../../utils/matchmaking';
 import { POSE_HTML_BUNDLE } from '../../camera/components/CameraScreen';
+import { recordExerciseMatchResult } from '../../../utils/rankingService';
+import { useUserStore } from '../../../store/userStore';
 
 const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
@@ -27,6 +29,7 @@ interface MatchCameraScreenProps {
   mode: MatchMode;
   opponentUsername?: string;
   selfUsername?: string;
+  exerciseId?: string;
 }
 
 export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
@@ -35,6 +38,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   mode = 'faceoff',
   opponentUsername = 'opponent',
   selfUsername = 'user',
+  exerciseId = '1',
 }) => {
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [opponentFrame, setOpponentFrame] = useState<string | null>(null);
@@ -43,8 +47,22 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   const [timeLeft, setTimeLeft] = useState(25);
   const [matchEnded, setMatchEnded] = useState(false);
   const matchEndedRef = useRef(false);
+  const recordedResultRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
   const streamListenerRef = useRef<(() => void) | null>(null);
+
+  const { user, refreshProfile } = useUserStore();
+
+  useEffect(() => {
+    if (matchEnded && !recordedResultRef.current && user?.id) {
+      recordedResultRef.current = true;
+      const result =
+        selfScore > opponentScore ? 'win' : selfScore === opponentScore ? 'draw' : 'defeat';
+      recordExerciseMatchResult(user.id, exerciseId, result, selfScore).then(() => {
+        refreshProfile();
+      });
+    }
+  }, [matchEnded, selfScore, opponentScore, user?.id, exerciseId, refreshProfile]);
 
   useEffect(() => {
     (async () => {
@@ -337,7 +355,11 @@ const ScoreBoard: React.FC<{
       >
         {ended ? (
           <Text style={[styles.timerOutcome, { color: timerColor }]} numberOfLines={1}>
-            {outcome}
+            {outcome === 'WIN'
+              ? 'VICTORY (+10)'
+              : outcome === 'DRAW'
+              ? 'DRAW (+5)'
+              : 'DEFEAT (-10)'}
           </Text>
         ) : (
           <>

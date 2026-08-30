@@ -1,15 +1,37 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Camera,
+  ChevronRight,
+  Flame,
+  Gamepad2,
+  Plus,
+  Settings,
+  Sparkles,
+  Swords,
+  Trophy,
+  UserPlus,
+  Users,
+} from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
+import { useUserStore } from '../store/userStore';
+import { fetchFriends, FriendshipItem } from '../utils/friendService';
 
-interface ExerciseItem {
+export interface ExerciseItem {
   id: string;
   name: string;
-  category: 'all' | 'new' | 'strength' | 'cardio' | 'flexibility';
+  category: 'all' | 'strength' | 'cardio' | 'flexibility';
   icon: string;
   isFavorite?: boolean;
-  isNew?: boolean;
   bgGradient?: string;
+  description?: string;
 }
 
 interface HomeFeedScreenProps {
@@ -18,7 +40,7 @@ interface HomeFeedScreenProps {
   onExerciseSelect: (exercise: ExerciseItem) => void;
   onSettingsPress: () => void;
   onOpenCamera: () => void;
-  onBack: () => void;
+  onNavigateToTab?: (tab: 'profile' | 'workouts') => void;
 }
 
 export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
@@ -27,122 +49,205 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
   onExerciseSelect,
   onSettingsPress,
   onOpenCamera,
-  onBack,
+  onNavigateToTab,
 }) => {
-  const exercises: ExerciseItem[] = [
-    { id: '1', name: 'Squats', category: 'strength', icon: '🏋️', isFavorite: true, isNew: true },
-    { id: '2', name: 'Pushups', category: 'strength', icon: '💪', isFavorite: true },
-    { id: '3', name: 'Lunges', category: 'strength', icon: '🦵' },
-    { id: '4', name: 'Plank Hold', category: 'flexibility', icon: '⏱️', isFavorite: true },
-    { id: '5', name: 'Jumping Jacks', category: 'cardio', icon: '⚡' },
-  ];
+  const { user } = useUserStore();
+  const [friends, setFriends] = useState<FriendshipItem[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState<boolean>(false);
+
+  const defaultExercise: ExerciseItem = {
+    id: '1',
+    name: 'Squats',
+    category: 'strength',
+    icon: '🏋️',
+    isFavorite: true,
+    description: 'AI Real-time MediaPipe Pose Tracker for Parallel Depth & Rep Counting',
+  };
+
+  const loadFriendsList = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingFriends(true);
+    try {
+      const list = await fetchFriends(user.id);
+      setFriends(list);
+    } catch (e) {
+      console.warn('Failed to load friends on home feed:', e);
+    } finally {
+      setLoadingFriends(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadFriendsList();
+  }, [loadFriendsList]);
 
   return (
-    <ScrollView style={styles.feedScrollView} contentContainerStyle={styles.feedScrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.feedScrollView}
+      contentContainerStyle={styles.feedScrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* 1. ONLINE ATHLETES & FRIENDS SECTION */}
       <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeaderTitle}>ONLINE/FAVORITES</Text>
-        <Text style={styles.sectionHeaderArrow}>▼</Text>
+        <View style={styles.headerLeftRow}>
+          <Users size={14} color="#818CF8" style={{ marginRight: 6 }} />
+          <Text style={styles.sectionHeaderTitle}>ONLINE FRIENDS</Text>
+        </View>
+
+        <View style={styles.onlineBadgePill}>
+          <View style={styles.pulseGreenDot} />
+          <Text style={styles.onlineBadgeText}>{onlineCount} Online</Text>
+        </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalAvatarRow}>
-        <TouchableOpacity style={styles.avatarItem} activeOpacity={0.8}>
-          <View style={[styles.avatarCircleLarge, styles.addFriendCircle]}>
-            <Avatar username="add-friend" size={62} />
-            <View style={styles.plusIconBadge}><Text style={styles.plusIconText}>+</Text></View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalAvatarRow}
+      >
+        {/* Add Friend Button */}
+        <TouchableOpacity
+          style={styles.avatarItem}
+          activeOpacity={0.8}
+          onPress={() => onNavigateToTab?.('profile')}
+        >
+          <View style={styles.addFriendCircle}>
+            <UserPlus size={24} color="#60A5FA" />
+            <View style={styles.plusIconBadge}>
+              <Plus size={12} color="#FFFFFF" strokeWidth={3} />
+            </View>
           </View>
-          <Text style={styles.avatarLabel} numberOfLines={1}>Add Fri...</Text>
+          <Text style={styles.avatarLabel} numberOfLines={1}>
+            Add Friend
+          </Text>
         </TouchableOpacity>
 
-        {exercises.slice(0, 4).map((item) => (
-          <TouchableOpacity key={item.id} style={styles.avatarItem} activeOpacity={0.8} onPress={() => onExerciseSelect(item)}>
-            <View style={styles.avatarCircleLarge}><Avatar username={item.name} size={62} /></View>
-            <Text style={styles.avatarLabel} numberOfLines={1}>{item.name}</Text>
+        {/* Real Friends List */}
+        {friends.map((item) => (
+          <TouchableOpacity
+            key={item.friendship_id}
+            style={styles.avatarItem}
+            activeOpacity={0.8}
+            onPress={() => onNavigateToTab?.('profile')}
+          >
+            <View style={styles.avatarWrapper}>
+              <Avatar
+                username={item.friend.username}
+                size={58}
+                config={item.friend.avatar_config}
+              />
+              <View style={styles.onlinePresenceDot} />
+            </View>
+            <Text style={styles.avatarLabel} numberOfLines={1}>
+              {item.friend.username}
+            </Text>
           </TouchableOpacity>
         ))}
+
+        {/* If no friends yet, show helpful prompt athlete */}
+        {friends.length === 0 && !loadingFriends && (
+          <TouchableOpacity
+            style={styles.avatarItem}
+            activeOpacity={0.8}
+            onPress={() => onNavigateToTab?.('profile')}
+          >
+            <View style={[styles.avatarWrapper, styles.placeholderFriendCircle]}>
+              <Avatar username="plato_bot" size={58} />
+              <View style={styles.onlinePresenceDot} />
+            </View>
+            <Text style={styles.avatarLabel} numberOfLines={1}>
+              platoBot
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
+      {/* 2. DAILY FITNESS CHALLENGE */}
       <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeaderTitle}>FEATURED</Text>
-        <Text style={styles.sectionHeaderArrow}>▲</Text>
+        <View style={styles.headerLeftRow}>
+          <Flame size={15} color="#F59E0B" style={{ marginRight: 6 }} />
+          <Text style={styles.sectionHeaderTitle}>DAILY CHALLENGE</Text>
+        </View>
       </View>
 
       <View style={styles.featuredCard}>
         <View style={styles.questHeaderRow}>
-          <View style={styles.questIconCircle}><Text style={{ fontSize: 20 }}>🗡️</Text></View>
+          <View style={styles.questIconCircle}>
+            <Trophy size={20} color="#F59E0B" />
+          </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.questSubTitle}>DAILY QUEST</Text>
-            <Text style={styles.questTitle}>Win 2 Games</Text>
+            <Text style={styles.questTitle}>Complete 1 Duel</Text>
           </View>
           <View style={styles.questTimeRow}>
-            <Text style={styles.questTimerText}>21H 39MIN</Text>
-            <Text style={styles.questDetailsArrow}>DETAILS ▼</Text>
+            <Text style={styles.questTimerText}>ACTIVE NOW</Text>
           </View>
         </View>
 
-        <View style={styles.questProgressTrack}><View style={styles.questProgressFill} /></View>
-
-        <View style={styles.questTaskItem}>
-          <View style={styles.taskIconBox}><Text style={{ fontSize: 18 }}>🎮</Text></View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.taskTitle}>Win 1 Game</Text>
-            <Text style={styles.taskSubtitle}>Play in Conversation</Text>
-          </View>
-          <TouchableOpacity style={styles.goButton} activeOpacity={0.8} onPress={() => onExerciseSelect(exercises[0])}>
-            <Text style={styles.goButtonText}>Go</Text>
-          </TouchableOpacity>
+        <View style={styles.questProgressTrack}>
+          <View style={styles.questProgressFill} />
         </View>
 
         <View style={styles.questTaskItem}>
-          <View style={styles.taskIconBox}><Text style={{ fontSize: 18 }}>🎮</Text></View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.taskTitle}>Win 1 Game</Text>
-            <Text style={styles.taskSubtitle}>Play Private Game</Text>
+          <View style={styles.taskIconBox}>
+            <Swords size={18} color="#818CF8" />
           </View>
-          <TouchableOpacity style={styles.goButton} activeOpacity={0.8} onPress={() => onExerciseSelect(exercises[1])}>
-            <Text style={styles.goButtonText}>Go</Text>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.taskTitle}>Squats 1v1 Battle</Text>
+            <Text style={styles.taskSubtitle}>Test your parallel squat depth against opponents</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.goButton}
+            activeOpacity={0.8}
+            onPress={() => onExerciseSelect(defaultExercise)}
+          >
+            <Text style={styles.goButtonText}>PLAY</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.rewardsRow}>
-          <Text style={styles.rewardsLabel}>Rewards</Text>
-          <View style={styles.rewardPill}><Text style={{ fontSize: 14 }}>🪙</Text><Text style={styles.rewardText}>150 Coins</Text></View>
-          <View style={styles.rewardPill}><Text style={{ fontSize: 14 }}>💎</Text><Text style={styles.rewardText}>100 Hype</Text></View>
         </View>
       </View>
 
-      <TouchableOpacity style={styles.featuredCard} activeOpacity={0.9} onPress={() => onExerciseSelect(exercises[0])}>
-        <View style={styles.aiCardAccentBar} />
+      {/* 3. AI POSE TRACKER LIVE CAMERA CARD */}
+      <View style={styles.sectionHeaderRow}>
+        <View style={styles.headerLeftRow}>
+          <Sparkles size={15} color="#60A5FA" style={{ marginRight: 6 }} />
+          <Text style={styles.sectionHeaderTitle}>AI POSE TRACKER</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.aiTrackerCard}
+        activeOpacity={0.9}
+        onPress={onOpenCamera}
+      >
         <View style={styles.aiCardBody}>
-          <View style={styles.aiIconCircle}><Text style={{ fontSize: 26 }}>🤳</Text></View>
+          <View style={styles.aiIconCircle}>
+            <Camera size={26} color="#60A5FA" />
+          </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.aiCardTitle}>Live Camera</Text>
-            <Text style={styles.aiCardSubtitle}>Real-time MediaPipe joint tracking ({selectedModel})</Text>
+            <Text style={styles.aiCardTitle}>Practice Solo Camera</Text>
+            <Text style={styles.aiCardSubtitle}>
+              MediaPipe real-time joint skeleton & rep counter ({selectedModel})
+            </Text>
           </View>
         </View>
 
         <View style={styles.aiCardFooter}>
-          <TouchableOpacity style={styles.settingsPill} activeOpacity={0.8} onPress={(e) => { e.stopPropagation(); onSettingsPress(); }}>
-            <Text style={styles.settingsPillText}>⚙️ Settings</Text>
+          <TouchableOpacity
+            style={styles.settingsPill}
+            activeOpacity={0.8}
+            onPress={(e) => {
+              e.stopPropagation();
+              onSettingsPress();
+            }}
+          >
+            <Settings size={13} color="#94A3B8" style={{ marginRight: 4 }} />
+            <Text style={styles.settingsPillText}>Settings</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.launchPill} activeOpacity={0.85} onPress={onOpenCamera}>
-            <Text style={styles.launchPillText}>Open Camera →</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
 
-      <TouchableOpacity style={styles.feedItemRow} activeOpacity={0.8}>
-        <View style={styles.feedAvatarCircle}><Avatar username="GCU boiiis" size={42} /></View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <View style={styles.feedItemHeader}><Text style={styles.feedItemTitle}>👥 GCU boiiis</Text><Text style={styles.feedItemTime}>05/07/26</Text></View>
-          <Text style={styles.feedItemSnippet}>You: Hi</Text>
-        </View>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.feedItemRow} activeOpacity={0.8}>
-        <View style={styles.feedAvatarCircle}><Avatar username="PlatoBot" size={42} /></View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <View style={styles.feedItemHeader}><Text style={styles.feedItemTitle}>PlatoBot</Text><Text style={styles.feedItemTime}>03/05/26</Text></View>
-          <Text style={styles.feedItemSnippet} numberOfLines={1}>PlatoBot: You'll have more fun if you invite your friends...</Text>
+          <View style={styles.launchPill}>
+            <Text style={styles.launchPillText}>Start Practice</Text>
+            <ChevronRight size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+          </View>
         </View>
       </TouchableOpacity>
     </ScrollView>
@@ -150,52 +255,280 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  feedScrollView: { flex: 1 },
-  feedScrollContent: { paddingBottom: 20 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, marginTop: 18, marginBottom: 10 },
-  sectionHeaderTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
-  sectionHeaderArrow: { color: '#94A3B8', fontSize: 12 },
-  horizontalAvatarRow: { paddingHorizontal: 14, gap: 12 },
-  avatarItem: { alignItems: 'center', width: 74 },
-  avatarCircleLarge: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#182030', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  addFriendCircle: { position: 'relative' },
-  plusIconBadge: { position: 'absolute', right: -2, bottom: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
-  plusIconText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  avatarLabel: { color: '#E2E8F0', fontSize: 11, marginTop: 8 },
-  featuredCard: { backgroundColor: '#182030', borderRadius: 20, marginHorizontal: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  questHeaderRow: { flexDirection: 'row', alignItems: 'center' },
-  questIconCircle: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#1E293B', alignItems: 'center', justifyContent: 'center' },
-  questSubTitle: { color: '#94A3B8', fontSize: 11, fontWeight: '700' },
-  questTitle: { color: '#F8FAFC', fontSize: 22, fontWeight: '800', marginTop: 2 },
-  questTimeRow: { alignItems: 'flex-end' },
-  questTimerText: { color: '#93C5FD', fontSize: 10, fontWeight: '700' },
-  questDetailsArrow: { color: '#94A3B8', fontSize: 10, marginTop: 4 },
-  questProgressTrack: { height: 10, borderRadius: 8, backgroundColor: '#0F172A', overflow: 'hidden', marginTop: 14 },
-  questProgressFill: { width: '62%', height: '100%', backgroundColor: '#2563EB', borderRadius: 8 },
-  questTaskItem: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
-  taskIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
-  taskTitle: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
-  taskSubtitle: { color: '#94A3B8', fontSize: 12, marginTop: 2 },
-  goButton: { backgroundColor: '#1D4ED8', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
-  goButtonText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
-  rewardsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18, gap: 8 },
-  rewardsLabel: { color: '#E2E8F0', fontWeight: '700', fontSize: 12 },
-  rewardPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0F172A', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
-  rewardText: { color: '#F8FAFC', marginLeft: 6, fontSize: 12, fontWeight: '700' },
-  aiCardAccentBar: { width: 4, height: 60, backgroundColor: '#60A5FA', borderRadius: 4 },
-  aiCardBody: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  aiIconCircle: { width: 54, height: 54, borderRadius: 16, backgroundColor: '#1E3A8A', alignItems: 'center', justifyContent: 'center' },
-  aiCardTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
-  aiCardSubtitle: { color: '#CBD5E1', fontSize: 12, marginTop: 3 },
-  aiCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
-  settingsPill: { backgroundColor: '#0F172A', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  settingsPillText: { color: '#E2E8F0', fontWeight: '700' },
-  launchPill: { backgroundColor: '#2563EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  launchPillText: { color: '#FFF', fontWeight: '800' },
-  feedItemRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 6 },
-  feedAvatarCircle: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  feedItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  feedItemTitle: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  feedItemTime: { color: '#94A3B8', fontSize: 11 },
-  feedItemSnippet: { color: '#CBD5E1', fontSize: 12, marginTop: 4 },
+  feedScrollView: {
+    flex: 1,
+    backgroundColor: '#0D111A',
+  },
+  feedScrollContent: {
+    paddingBottom: 32,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionHeaderTitle: {
+    color: '#818CF8',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  onlineBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 5,
+  },
+  pulseGreenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  onlineBadgeText: {
+    color: '#34D399',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  horizontalAvatarRow: {
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  avatarItem: {
+    alignItems: 'center',
+    width: 66,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderFriendCircle: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 30,
+  },
+  onlinePresenceDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#0D111A',
+  },
+  addFriendCircle: {
+    position: 'relative',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#161F30',
+    borderWidth: 1.5,
+    borderColor: 'rgba(96, 165, 250, 0.4)',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusIconBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLabel: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  featuredCard: {
+    backgroundColor: '#161F30',
+    borderRadius: 20,
+    marginHorizontal: 16,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  questHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  questIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questSubTitle: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  questTitle: {
+    color: '#F8FAFC',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  questTimeRow: {
+    alignItems: 'flex-end',
+  },
+  questTimerText: {
+    color: '#34D399',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  questProgressTrack: {
+    height: 6,
+    borderRadius: 4,
+    backgroundColor: '#0F172A',
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  questProgressFill: {
+    width: '50%',
+    height: '100%',
+    backgroundColor: '#F59E0B',
+    borderRadius: 4,
+  },
+  questTaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  taskIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  taskTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  taskSubtitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  goButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  goButtonText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  aiTrackerCard: {
+    backgroundColor: '#161F30',
+    borderRadius: 20,
+    marginHorizontal: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  aiCardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiCardTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  aiCardSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  aiCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  settingsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  settingsPillText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  launchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  launchPillText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
 });

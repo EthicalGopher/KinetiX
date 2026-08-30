@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { AvatarConfig, AvatarStyle } from '../components/Avatar';
+import { generateRandomUsername } from './usernameGenerator';
 
 export interface UserProfile {
   id: string;
@@ -9,9 +10,6 @@ export interface UserProfile {
   avatar_config?: AvatarConfig;
   bio?: string;
   fitness_goal?: string;
-  total_squats: number;
-  matches_played: number;
-  matches_won: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -32,10 +30,17 @@ export async function getOrCreateUserProfile(user: any): Promise<UserProfile> {
     throw new Error('User ID is required');
   }
 
-  const defaultUsername =
-    user.user_metadata?.username ||
-    user.email?.split('@')[0] ||
-    `athlete_${user.id.slice(0, 5)}`;
+  let defaultUsername = user.user_metadata?.username;
+  if (!defaultUsername && user.email) {
+    defaultUsername = user.email.split('@')[0];
+  }
+  if (!defaultUsername) {
+    try {
+      defaultUsername = await generateRandomUsername();
+    } catch {
+      defaultUsername = `athlete_${user.id.slice(0, 5)}`;
+    }
+  }
 
   const defaultAvatar = generateDefaultAvatar(defaultUsername);
 
@@ -62,9 +67,6 @@ export async function getOrCreateUserProfile(user: any): Promise<UserProfile> {
       avatar_config: user.user_metadata?.avatar_config || defaultAvatar,
       bio: 'Ready to crush daily fitness milestones with plato! 🔥',
       fitness_goal: 'Strength & Stamina',
-      total_squats: 0,
-      matches_played: 0,
-      matches_won: 0,
     };
 
     // Try inserting into Supabase profiles table
@@ -93,9 +95,6 @@ export async function getOrCreateUserProfile(user: any): Promise<UserProfile> {
       avatar_config: defaultAvatar,
       bio: 'Ready to crush daily fitness milestones with plato! 🔥',
       fitness_goal: 'Strength & Stamina',
-      total_squats: 0,
-      matches_played: 0,
-      matches_won: 0,
     };
   }
 }

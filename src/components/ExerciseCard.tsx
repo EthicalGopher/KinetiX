@@ -6,7 +6,7 @@ interface ExerciseCardProps {
     id: string;
     name: string;
     icon: string;
-    isNew?: boolean;
+    category?: string;
     bgGradient?: string;
   };
   queueCount: number;
@@ -17,20 +17,14 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({ item, queueCount, on
   return (
     <TouchableOpacity style={styles.gridCard} activeOpacity={0.85} onPress={onPress}>
       <View style={styles.gridCardHeaderRow}>
-        {item.isNew ? (
-          <View style={styles.newMiniBadge}>
-            <Text style={styles.newMiniBadgeText}>NEW</Text>
-          </View>
-        ) : (
-          <View />
-        )}
+        <View></View>
         <View style={styles.gridFavBadge}>
-          <Text style={{ fontSize: 11, color: '#FFF' }}>{queueCount}</Text>
+          <Text style={{ fontSize: 11, color: '#FFF', fontWeight: '700' }}>{queueCount}</Text>
         </View>
       </View>
 
       <View style={styles.gridIconCenter}>
-        <Text style={{ fontSize: 34 }}>{item.icon}</Text>
+        <Text style={{ fontSize: 36 }}>{item.icon}</Text>
       </View>
 
       <View style={styles.gridCardFooter}>
@@ -57,21 +51,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  newMiniBadge: {
-    backgroundColor: '#1D4ED8',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  categoryMiniBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
   },
-  newMiniBadgeText: {
+  categoryMiniBadgeText: {
     fontSize: 9,
-    color: '#FFF',
-    fontWeight: '700',
+    color: '#A5B4FC',
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   gridFavBadge: {
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },

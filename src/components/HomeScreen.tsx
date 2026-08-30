@@ -21,43 +21,23 @@ import {
 } from '../utils/matchmaking';
 import { useMatchmakingStore } from '../store/matchmakingStore';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
-import { ExercisesScreen } from '../screens/ExercisesScreen';
+import { ExercisesScreen, ExerciseItem } from '../screens/ExercisesScreen';
 import { HomeFeedScreen } from '../screens/HomeFeedScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { DEFAULT_EXERCISES, fetchExercisesFromSupabase } from '../utils/exerciseService';
 import { Header } from './Header';
 
 export type MainTab = 'home' | 'explore' | 'workouts' | 'social' | 'profile';
 
 type SubTab = 'feed' | 'news';
 type DetailSubTab = 'workouts' | 'shop' | 'leaderboard' | 'how_to_play';
-type ExerciseCategory = 'all' | 'new' | 'strength' | 'cardio' | 'flexibility';
-
-interface ExerciseItem {
-  id: string;
-  name: string;
-  category: ExerciseCategory;
-  icon: string;
-  isFavorite?: boolean;
-  isNew?: boolean;
-  bgGradient?: string;
-}
-
-const EXERCISES_DATA: ExerciseItem[] = [
-  { id: '1', name: 'Squats', category: 'strength', icon: '🏋️', isFavorite: true, isNew: true, bgGradient: '#2563EB' },
-  { id: '2', name: 'Pushups', category: 'strength', icon: '💪', isFavorite: true, bgGradient: '#1D4ED8' },
-  { id: '3', name: 'Lunges', category: 'strength', icon: '🦵', bgGradient: '#1E293B' },
-  { id: '4', name: 'Plank Hold', category: 'flexibility', icon: '⏱️', isFavorite: true, bgGradient: '#0F172A' },
-  { id: '5', name: 'Jumping Jacks', category: 'cardio', icon: '⚡', bgGradient: '#1E1B4B' },
-  { id: '6', name: 'High Knees', category: 'cardio', icon: '🏃', isNew: true, bgGradient: '#312E81' },
-  { id: '7', name: 'Bicep Curls', category: 'strength', icon: '🦾', bgGradient: '#1E293B' },
-  { id: '8', name: 'Burpees', category: 'cardio', icon: '🔥', isFavorite: true, bgGradient: '#4C1D95' },
-];
+type ExerciseCategory = 'all' | 'strength' | 'cardio' | 'flexibility';
 
 interface HomeScreenProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
   onOpenCamera: () => void;
-  onOpenMatchCamera: (opponent: string, mode: 'faceoff' | 'quickjoin') => void;
+  onOpenMatchCamera: (opponent: string, mode: 'faceoff' | 'quickjoin', exerciseId?: string) => void;
   onEnterQueue: () => void;
   onCancelQueue: () => void;
   onShowAuthModal: () => void;
@@ -80,6 +60,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectModel,
   onLogout,
 }) => {
+  const [exercisesList, setExercisesList] = useState<ExerciseItem[]>(DEFAULT_EXERCISES);
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('feed');
   const [selectedCategory, setSelectedCategory] = useState<ExerciseCategory>('all');
   const [selectedExercise, setSelectedExercise] = useState<ExerciseItem | null>(null);
@@ -91,6 +72,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const onlineCount = useMatchmakingStore((state) => state.total_online);
   const queueCounts = useMatchmakingStore((state) => state.exercise_counts);
   const setCounts = useMatchmakingStore((state) => state.setCounts);
+
+  const loadExercises = async () => {
+    try {
+      const data = await fetchExercisesFromSupabase();
+      if (data && data.length > 0) {
+        setExercisesList(data);
+      }
+    } catch (e) {
+      console.warn('Failed to load exercises from Supabase:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadExercises();
+  }, []);
 
   const isFirstTabRender = useRef(true);
 
@@ -165,7 +161,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
     const cleanup = addMatchMessageListener((msg) => {
       if (msg.type === 'matched') {
-        onOpenMatchCamera(msg.opponent, queue === 'quick_start' ? 'quickjoin' : 'faceoff');
+        onOpenMatchCamera(msg.opponent, queue === 'quick_start' ? 'quickjoin' : 'faceoff', exercise.id);
         cleanup();
       }
     });
@@ -201,16 +197,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     if (activeTab === 'workouts') {
       return (
         <ExercisesScreen
-          exercises={EXERCISES_DATA}
+          exercises={exercisesList}
           queueCounts={queueCounts}
           selectedCategory={selectedCategory}
           onCategoryChange={setSelectedCategory}
           onExerciseSelect={setSelectedExercise}
+          onRefreshExercises={loadExercises}
         />
       );
     }
 
-    if (activeTab === 'profile') {
+    if (activeTab === 'profile' || activeTab === 'social') {
       return (
         <ProfileScreen
           currentUser={currentUser}
@@ -222,7 +219,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
     if (activeTab !== 'home') {
       return renderUnderDevelopment(
-        activeTab === 'explore' ? 'Explore Section' : 'Friends & Leaderboards'
+        activeTab === 'explore' ? 'Explore Section' : 'Special Events'
       );
     }
 
@@ -237,10 +234,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onExerciseSelect={setSelectedExercise}
         onSettingsPress={() => setShowSettingsModal(true)}
         onOpenCamera={onOpenCamera}
-        onBack={() => setSelectedExercise(null)}
+        onNavigateToTab={onTabChange}
       />
     );
-  }, [activeSubTab, activeTab, currentUser, detailSubTab, onlineCount, onLogout, onOpenCamera, onTabChange, queueCounts, selectedCategory, selectedExercise, selectedModel]);
+  }, [activeSubTab, activeTab, currentUser, detailSubTab, exercisesList, onlineCount, onLogout, onOpenCamera, onTabChange, queueCounts, selectedCategory, selectedExercise, selectedModel]);
 
   return (
     <SafeAreaView style={styles.container}>
