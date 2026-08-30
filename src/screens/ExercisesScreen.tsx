@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,22 +9,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ExerciseCard } from '../components/ExerciseCard';
+import { ChevronRight, Dumbbell, Flame, Play, Sparkles, Swords, Zap } from 'lucide-react-native';
 import { Header } from '../components/Header';
-import { DEFAULT_EXERCISES, fetchExercisesFromSupabase } from '../utils/exerciseService';
+import {
+  DEFAULT_EXERCISES,
+  fetchExercisesFromSupabase,
+  ExerciseItem,
+} from '../utils/exerciseService';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH - 32;
-
-export interface ExerciseItem {
-  id: string;
-  name: string;
-  category: 'all' | 'strength' | 'cardio' | 'flexibility';
-  icon: string;
-  description?: string;
-  bgGradient?: string;
-  isFavorite?: boolean;
-}
+export type { ExerciseItem };
 
 interface ExercisesScreenProps {
   exercises?: ExerciseItem[];
@@ -45,8 +36,9 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
   onExerciseSelect,
   onRefreshExercises,
 }) => {
-  const [exercisesList, setExercisesList] = useState<ExerciseItem[]>(propExercises || DEFAULT_EXERCISES);
-  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [exercisesList, setExercisesList] = useState<ExerciseItem[]>(
+    propExercises || DEFAULT_EXERCISES
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -90,168 +82,139 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
     return item.category === selectedCategory;
   });
 
-  const handleCarouselScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / (CAROUSEL_CARD_WIDTH + 12));
-    setCarouselIndex(Math.max(0, Math.min(index, exercisesList.length - 1)));
-  };
-
   return (
     <View style={styles.exercisesScreenContainer}>
       <Header />
 
-      {/* Category Pills Filter */}
-      <View style={styles.categoryBarWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScrollContent}
-        >
-          <TouchableOpacity
-            style={[styles.categoryChip, selectedCategory === 'all' && styles.categoryChipActive]}
-            activeOpacity={0.8}
-            onPress={() => onCategoryChange('all')}
-          >
-            <Text style={[styles.categoryChipText, selectedCategory === 'all' && styles.categoryChipTextActive]}>
-              🎮 All
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.categoryChip, selectedCategory === 'strength' && styles.categoryChipActive]}
-            activeOpacity={0.8}
-            onPress={() => onCategoryChange('strength')}
-          >
-            <Text style={[styles.categoryChipText, selectedCategory === 'strength' && styles.categoryChipTextActive]}>
-              💪 Strength
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.categoryChip, selectedCategory === 'cardio' && styles.categoryChipActive]}
-            activeOpacity={0.8}
-            onPress={() => onCategoryChange('cardio')}
-          >
-            <Text style={[styles.categoryChipText, selectedCategory === 'cardio' && styles.categoryChipTextActive]}>
-              ⚡ Cardio
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.categoryChip, selectedCategory === 'flexibility' && styles.categoryChipActive]}
-            activeOpacity={0.8}
-            onPress={() => onCategoryChange('flexibility')}
-          >
-            <Text style={[styles.categoryChipText, selectedCategory === 'flexibility' && styles.categoryChipTextActive]}>
-              🧘 Mobility
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
       <ScrollView
-        style={styles.gridScrollView}
-        contentContainerStyle={styles.gridScrollContent}
+        style={styles.mainScrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#6366F1"
-            colors={['#6366F1', '#2563EB']}
+            tintColor="#E2F163"
+            colors={['#E2F163', '#C8B6FF']}
           />
         }
       >
-        {/* Top Carousel: Exercises Displayed One After Another */}
-        <View style={styles.carouselSection}>
-          <ScrollView
-            horizontal
-            pagingEnabled={false}
-            snapToInterval={CAROUSEL_CARD_WIDTH + 12}
-            snapToAlignment="center"
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
-            onScroll={handleCarouselScroll}
-            scrollEventThrottle={16}
-            contentContainerStyle={styles.carouselScrollContent}
-          >
-            {exercisesList.map((item) => {
-              const count = queueCounts[item.id] || 0;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.carouselCard, { width: CAROUSEL_CARD_WIDTH }]}
-                  activeOpacity={0.88}
-                  onPress={() => onExerciseSelect(item)}
+        {/* Section Title: "Your plan" */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitleText}>Your plan</Text>
+      
+        </View>
+
+        {/* Dynamic Category Pills Filter */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryScrollContent}
+        >
+          {[
+            { id: 'all', label: 'All workouts' },
+            { id: 'strength', label: 'Strength' },
+            { id: 'cardio', label: 'Cardio' },
+            { id: 'flexibility', label: 'Mobility' },
+          ].map((cat) => {
+            const isActive = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                activeOpacity={0.8}
+                onPress={() => onCategoryChange(cat.id as any)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    isActive && styles.categoryChipTextActive,
+                  ]}
                 >
-                  <View style={styles.carouselCardOverlay}>
-                    <View style={styles.carouselTopRow}>
-                      <View style={styles.categoryPillBadge}>
-                        <Text style={styles.categoryPillBadgeText}>
-                          {item.category === 'strength' ? '💪 Strength' : item.category === 'cardio' ? '⚡ Cardio' : '🧘 Mobility'}
-                        </Text>
-                      </View>
-                      <View style={styles.queueCountBadge}>
-                        <View style={styles.greenPulseDot} />
-                        <Text style={styles.queueCountBadgeText}>{count} active</Text>
-                      </View>
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Loading Indicator */}
+        {isLoading && exercisesList.length === 0 ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#E2F163" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        ) : filteredExercises.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Dumbbell size={36} color="#8E95A0" style={{ marginBottom: 10 }} />
+            <Text style={styles.emptyTitle}>No workouts in this category</Text>
+            <Text style={styles.emptySubtitle}>Try selecting 'All workouts' to see everything.</Text>
+          </View>
+        ) : (
+          /* 100% DYNAMIC WORKOUT PLAN CARDS FETCHED FROM SUPABASE */
+          filteredExercises.map((exercise, index) => {
+            const defaultPalettes = ['#C8B6FF', '#FFD6E0', '#E2F163', '#C8B6FF', '#FFD6E0'];
+            const cardBg = exercise.bg_theme || defaultPalettes[index % defaultPalettes.length];
+            const count = queueCounts[exercise.id] || 0;
+            const duration = exercise.duration_mins || (index % 2 === 0 ? 32 : 25);
+            const muscles = exercise.muscle_groups || (exercise.category === 'strength' ? 'Glutes / Squats / Core' : 'Cardio • Pace & Form');
+
+            return (
+              <TouchableOpacity
+                key={exercise.id}
+                style={[styles.workoutPlanCard, { backgroundColor: cardBg }]}
+                activeOpacity={0.9}
+                onPress={() => onExerciseSelect(exercise)}
+              >
+                {/* Top Row: Title & White Duration Badge */}
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.cardWorkoutTitle} numberOfLines={1}>
+                    {exercise.name}
+                  </Text>
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationBadgeNumber}>{duration}</Text>
+                    <Text style={styles.durationBadgeUnit}>Secs</Text>
+                  </View>
+                </View>
+
+                {/* Center Body with Athletic Visual & Category Tags */}
+                <View style={styles.cardBodyRow}>
+                  <View style={styles.athleteVisualCircle}>
+                    <Text style={styles.athleteEmoji}>{exercise.icon}</Text>
+                  </View>
+
+                  <View style={styles.cardTagsWrapper}>
+                    <View style={styles.muscleTagPill}>
+                      <View style={styles.darkDot} />
+                      <Text style={styles.muscleTagPillText} numberOfLines={1}>
+                        {muscles}
+                      </Text>
                     </View>
 
-                    <View style={styles.carouselCenterArt}>
-                      <View style={styles.emojiGlowCircle}>
-                        <Text style={styles.carouselEmoji}>{item.icon}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.carouselBottomRow}>
-                      <View style={{ flex: 1, marginRight: 10 }}>
-                        <Text style={styles.carouselCardTitle}>{item.name} Pose Tracker</Text>
-                        <Text style={styles.carouselCardSubtitle} numberOfLines={1}>
-                          {item.description || 'AI MediaPipe Real-time Pose & Rep Tracking'}
-                        </Text>
-                      </View>
-
-                      <View style={styles.carouselPlayBtn}>
-                        <Text style={styles.carouselPlayBtnText}>PLAY</Text>
-                        <Text style={styles.carouselPlayArrow}>➔</Text>
-                      </View>
+                    <View style={styles.activePlayersPill}>
+                      <Flame size={12} color="#11141A" style={{ marginRight: 3 }} />
+                      <Text style={styles.activePlayersText}>{count} Athletes Active</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                </View>
 
-          {/* Carousel Pagination Dots if multiple exercises */}
-          {exercisesList.length > 1 && (
-            <View style={styles.paginationDotsRow}>
-              {exercisesList.map((item, idx) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.paginationDot,
-                    carouselIndex === idx && styles.paginationDotActive,
-                  ]}
-                />
-              ))}
-            </View>
-          )}
-        </View>
+                {/* Bottom Quick Play Strip */}
+                <View style={styles.cardBottomRow}>
+                  <View style={styles.aiTagPill}>
+                    <Sparkles size={11} color="#11141A" style={{ marginRight: 4 }} />
+                    <Text style={styles.aiTagText}>
+                      {exercise.description || 'Live Pose & Rep Tracking'}
+                    </Text>
+                  </View>
 
-        {/* Section Heading */}
-        <Text style={styles.sectionHeaderTitle}>ALL EXERCISES</Text>
-
-        {/* Exercises Grid */}
-        <View style={styles.exerciseGridContainer}>
-          {filteredExercises.map((item) => (
-            <ExerciseCard
-              key={item.id}
-              item={item}
-              queueCount={queueCounts[item.id] || 0}
-              onPress={() => onExerciseSelect(item)}
-            />
-          ))}
-        </View>
+                  <View style={styles.playArrowCircle}>
+                    <Play size={12} color="#FFFFFF" fill="#FFFFFF" />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );
@@ -260,201 +223,213 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
 const styles = StyleSheet.create({
   exercisesScreenContainer: {
     flex: 1,
-    backgroundColor: '#0D111A',
+    backgroundColor: '#0C0F14',
   },
-  categoryBarWrapper: {
-    paddingVertical: 10,
-    backgroundColor: '#121826',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  mainScrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 110,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitleText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  refreshHintText: {
+    color: '#E2F163',
+    fontSize: 11,
+    fontWeight: '800',
   },
   categoryScrollContent: {
-    paddingHorizontal: 16,
     gap: 8,
+    marginBottom: 18,
   },
   categoryChip: {
-    backgroundColor: '#182030',
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#161B22',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   categoryChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
+    backgroundColor: '#FFFFFF',
   },
   categoryChipText: {
-    color: '#94A3B8',
-    fontSize: 13,
+    color: '#8E95A0',
+    fontSize: 12,
     fontWeight: '700',
   },
   categoryChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#11141A',
+    fontWeight: '900',
   },
-  gridScrollView: {
-    flex: 1,
+  loadingBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 10,
   },
-  gridScrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 32,
+  loadingText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  carouselSection: {
-    marginBottom: 20,
-  },
-  carouselScrollContent: {
-    gap: 12,
-  },
-  carouselCard: {
-    height: 215,
-    maxWidth: "100%",
+  emptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 36,
+    backgroundColor: '#161B22',
     borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#161F30',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
   },
-  carouselCardOverlay: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'space-between',
-  },
-  carouselTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  categoryPillBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryPillBadgeText: {
-    fontSize: 11,
-    color: '#C7D2FE',
+  emptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.3,
   },
-  queueCountBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  emptySubtitle: {
+    color: '#8E95A0',
+    fontSize: 12,
+    marginTop: 4,
   },
-  greenPulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 6,
-  },
-  queueCountBadgeText: {
-    fontSize: 11,
-    color: '#34D399',
-    fontWeight: '700',
-  },
-  carouselCenterArt: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 4,
-  },
-  emojiGlowCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#1E293B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+  workoutPlanCard: {
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
     elevation: 4,
   },
-  carouselEmoji: {
-    fontSize: 42,
-  },
-  carouselBottomRow: {
+  cardTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  carouselCardTitle: {
-    color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  carouselCardSubtitle: {
-    color: '#94A3B8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  carouselPlayBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    gap: 4,
-  },
-  carouselPlayBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  carouselPlayArrow: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  paginationDotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 6,
-  },
-  paginationDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  paginationDotActive: {
-    width: 18,
-    backgroundColor: '#6366F1',
-  },
-  sectionHeaderTitle: {
-    color: '#818CF8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  exerciseGridContainer: {
+  cardWorkoutTitle: {
+    color: '#11141A',
+    fontSize: 18,
+    fontWeight: '900',
+    flex: 1,
+    marginRight: 10,
+  },
+  durationBadge: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  durationBadgeNumber: {
+    color: '#11141A',
+    fontSize: 14,
+    fontWeight: '900',
+    lineHeight: 16,
+  },
+  durationBadgeUnit: {
+    color: '#4B5563',
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  cardBodyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  athleteVisualCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(17, 20, 26, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  athleteEmoji: {
+    fontSize: 32,
+  },
+  cardTagsWrapper: {
+    flex: 1,
+    marginLeft: 14,
+    gap: 6,
+  },
+  muscleTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 20, 26, 0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  darkDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#11141A',
+    marginRight: 6,
+  },
+  muscleTagPillText: {
+    color: '#11141A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  activePlayersPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  activePlayersText: {
+    color: '#11141A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cardBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(17, 20, 26, 0.08)',
+  },
+  aiTagPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  aiTagText: {
+    color: '#374151',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  playArrowCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#11141A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
-

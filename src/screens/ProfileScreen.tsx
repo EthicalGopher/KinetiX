@@ -270,7 +270,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color="#E2F163" />
         <Text style={styles.loadingText}>Loading athlete profile...</Text>
       </View>
     );
@@ -280,15 +280,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0D111A" />
+      <StatusBar barStyle="light-content" backgroundColor="#0C0F14" />
 
       {/* Header Bar */}
       <View style={styles.topHeader}>
-        <TouchableOpacity style={styles.backButton} activeOpacity={0.8} onPress={onBack}>
+        <TouchableOpacity style={styles.backButtonCircle} activeOpacity={0.8} onPress={onBack}>
           <ArrowLeft size={18} color="#FFFFFF" />
-          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>ATHLETE HUB</Text>
+
+        <Text style={styles.headerTitle}>ATHLETE PROFILE</Text>
+
         <TouchableOpacity
           style={[styles.editButton, isEditing && styles.editButtonActive]}
           activeOpacity={0.8}
@@ -302,29 +303,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           disabled={isSaving}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color="#11141A" />
           ) : isEditing ? (
             <View style={styles.btnRow}>
-              <Save size={14} color="#FFFFFF" />
+              <Save size={13} color="#11141A" style={{ marginRight: 4 }} />
               <Text style={styles.editButtonText}>Save</Text>
             </View>
           ) : (
             <View style={styles.btnRow}>
-              <Edit3 size={14} color="#C7D2FE" />
-              <Text style={[styles.editButtonText, { color: '#C7D2FE' }]}>Edit</Text>
+              <Edit3 size={13} color="#11141A" style={{ marginRight: 4 }} />
+              <Text style={styles.editButtonText}>Edit</Text>
             </View>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Sub Navigation Bar for Profile & Friends */}
+      {/* Sub Navigation Bar (Pill selector from reference) */}
       <View style={styles.subTabBar}>
         <TouchableOpacity
           style={[styles.subTabItem, activeTab === 'profile' && styles.subTabItemActive]}
           activeOpacity={0.8}
           onPress={() => setActiveTab('profile')}
         >
-          <User size={14} color={activeTab === 'profile' ? '#FFFFFF' : '#94A3B8'} />
           <Text style={[styles.subTabText, activeTab === 'profile' && styles.subTabTextActive]}>
             Profile
           </Text>
@@ -335,7 +335,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => setActiveTab('friends')}
         >
-          <Users size={14} color={activeTab === 'friends' ? '#FFFFFF' : '#94A3B8'} />
           <Text style={[styles.subTabText, activeTab === 'friends' && styles.subTabTextActive]}>
             Friends ({friends.length})
           </Text>
@@ -346,7 +345,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => setActiveTab('requests')}
         >
-          <Clock size={14} color={activeTab === 'requests' ? '#FFFFFF' : '#94A3B8'} />
           <Text style={[styles.subTabText, activeTab === 'requests' && styles.subTabTextActive]}>
             Requests
           </Text>
@@ -362,7 +360,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => setActiveTab('add_friend')}
         >
-          <UserPlus size={14} color={activeTab === 'add_friend' ? '#FFFFFF' : '#94A3B8'} />
           <Text style={[styles.subTabText, activeTab === 'add_friend' && styles.subTabTextActive]}>
             Add
           </Text>
@@ -377,8 +374,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#6366F1"
-            colors={['#6366F1', '#2563EB']}
+            tintColor="#E2F163"
+            colors={['#E2F163', '#C8B6FF']}
           />
         }
       >
@@ -389,7 +386,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.avatarWrapper}>
                 <Avatar
                   username={username || currentUser?.email || 'athlete'}
-                  size={100}
+                  size={96}
                   config={avatarConfig}
                 />
               </View>
@@ -401,7 +398,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     activeOpacity={0.8}
                     onPress={handleRandomizeAvatar}
                   >
-                    <Sparkles size={14} color="#A5B4FC" style={{ marginRight: 4 }} />
+                    <Sparkles size={13} color="#11141A" style={{ marginRight: 4 }} />
                     <Text style={styles.randomizeBtnText}>Shuffle Look</Text>
                   </TouchableOpacity>
 
@@ -447,17 +444,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               <View style={styles.badgeRow}>
                 <View style={styles.badgePill}>
-                  <ShieldCheck size={13} color="#10B981" style={{ marginRight: 4 }} />
+                  <ShieldCheck size={13} color="#11141A" style={{ marginRight: 4 }} />
                   <Text style={styles.badgeText}>Verified Athlete</Text>
                 </View>
-                <View
-                  style={[
-                    styles.badgePill,
-                    { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: '#6366F1' },
-                  ]}
-                >
-                  <Users size={13} color="#818CF8" style={{ marginRight: 4 }} />
-                  <Text style={[styles.badgeText, { color: '#818CF8' }]}>
+                <View style={[styles.badgePill, { backgroundColor: '#C8B6FF' }]}>
+                  <Users size={13} color="#11141A" style={{ marginRight: 4 }} />
+                  <Text style={[styles.badgeText, { color: '#11141A' }]}>
                     {friends.length} Friends
                   </Text>
                 </View>
@@ -479,10 +471,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       disabled={isGeneratingUsername}
                     >
                       {isGeneratingUsername ? (
-                        <ActivityIndicator size="small" color="#60A5FA" />
+                        <ActivityIndicator size="small" color="#11141A" />
                       ) : (
                         <View style={styles.btnRow}>
-                          <Sparkles size={11} color="#818CF8" style={{ marginRight: 4 }} />
+                          <Sparkles size={11} color="#11141A" style={{ marginRight: 4 }} />
                           <Text style={styles.randomizeUsernameBtnText}>🎲 Randomize</Text>
                         </View>
                       )}
@@ -579,7 +571,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 activeOpacity={0.7}
                 onPress={() => setActiveTab('add_friend')}
               >
-                <UserPlus size={13} color="#60A5FA" style={{ marginRight: 4 }} />
+                <UserPlus size={12} color="#11141A" style={{ marginRight: 4 }} />
                 <Text style={styles.headerActionPillText}>Add New</Text>
               </TouchableOpacity>
             </View>
@@ -589,14 +581,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <Users size={36} color="#64748B" style={{ marginBottom: 10 }} />
                 <Text style={styles.emptyCardTitle}>No Friends Yet</Text>
                 <Text style={styles.emptyCardSubtitle}>
-                  Connect with athletes to compete in 1v1 duels and compare workout streaks!
+                  Connect with athletes to compete in 1v1 duels and compare workout milestones!
                 </Text>
                 <TouchableOpacity
                   style={styles.addFriendPrimaryBtn}
                   activeOpacity={0.85}
                   onPress={() => setActiveTab('add_friend')}
                 >
-                  <UserPlus size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <UserPlus size={15} color="#11141A" style={{ marginRight: 6 }} />
                   <Text style={styles.addFriendPrimaryBtnText}>Find Friends</Text>
                 </TouchableOpacity>
               </View>
@@ -641,7 +633,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         ) : activeTab === 'requests' ? (
           /* Friend Requests View */
           <View style={styles.friendsContainer}>
-            {/* Incoming Requests */}
             <Text style={styles.sectionTitle}>
               INCOMING REQUESTS ({incomingRequests.length})
             </Text>
@@ -674,9 +665,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         disabled={actionLoadingId === item.friendship_id}
                       >
                         {actionLoadingId === item.friendship_id ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
+                          <ActivityIndicator size="small" color="#11141A" />
                         ) : (
-                          <Check size={16} color="#FFFFFF" />
+                          <Check size={16} color="#11141A" />
                         )}
                       </TouchableOpacity>
 
@@ -694,7 +685,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
             )}
 
-            {/* Outgoing Requests */}
             <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
               PENDING SENT REQUESTS ({outgoingRequests.length})
             </Text>
@@ -762,10 +752,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   disabled={isSendingRequest}
                 >
                   {isSendingRequest ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color="#11141A" />
                   ) : (
                     <View style={styles.btnRow}>
-                      <UserPlus size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <UserPlus size={15} color="#11141A" style={{ marginRight: 6 }} />
                       <Text style={styles.sendRequestBtnText}>Send</Text>
                     </View>
                   )}
@@ -774,7 +764,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
 
             <View style={styles.infoTipBox}>
-              <Info size={18} color="#818CF8" style={{ marginRight: 10 }} />
+              <Info size={18} color="#E2F163" style={{ marginRight: 10 }} />
               <Text style={styles.infoTipText}>
                 Once the athlete accepts your request from their profile, you will be able to start private 1v1 duels and compare workout milestones!
               </Text>
@@ -789,13 +779,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D111A',
+    backgroundColor: '#0C0F14',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0D111A',
+    backgroundColor: '#0C0F14',
     gap: 12,
   },
   loadingText: {
@@ -808,45 +798,37 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#121826',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: '#0C0F14',
   },
-  backButton: {
-    flexDirection: 'row',
+  backButtonCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#181D26',
     alignItems: 'center',
-    backgroundColor: '#182030',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    gap: 4,
-  },
-  backButtonText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '700',
   },
   headerTitle: {
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: 0.5,
   },
   editButton: {
-    backgroundColor: '#1D4ED8',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    backgroundColor: '#E2F163', // Neon lime edit button
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   editButtonActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#C8B6FF',
   },
   editButtonText: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   btnRow: {
     flexDirection: 'row',
@@ -856,10 +838,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#121826',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    gap: 6,
+    gap: 8,
   },
   subTabItem: {
     flex: 1,
@@ -867,24 +846,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#161F30',
+    borderRadius: 20,
+    backgroundColor: '#161B22',
     gap: 5,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.04)',
   },
   subTabItemActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
+    backgroundColor: '#FFFFFF', // Active white pill
   },
   subTabText: {
-    color: '#94A3B8',
+    color: '#8E95A0',
     fontSize: 11,
     fontWeight: '700',
   },
   subTabTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#11141A',
+    fontWeight: '900',
   },
   badgeCountPill: {
     backgroundColor: '#EF4444',
@@ -902,12 +880,12 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   heroCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 24,
-    padding: 20,
+    backgroundColor: '#161B22',
+    borderRadius: 28,
+    padding: 22,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
@@ -924,18 +902,16 @@ const styles = StyleSheet.create({
   randomizeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderWidth: 1,
-    borderColor: '#6366F1',
+    backgroundColor: '#E2F163',
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 20,
     marginBottom: 10,
   },
   randomizeBtnText: {
-    color: '#A5B4FC',
+    color: '#11141A',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   styleSelectorRow: {
     flexDirection: 'row',
@@ -947,69 +923,64 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 14,
-    backgroundColor: '#0F172A',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: '#212631',
   },
   styleChipActive: {
-    backgroundColor: '#6366F1',
-    borderColor: '#818CF8',
+    backgroundColor: '#C8B6FF',
   },
   styleChipText: {
-    color: '#94A3B8',
+    color: '#CBD5E1',
     fontSize: 11,
     fontWeight: '600',
   },
   styleChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: '#11141A',
+    fontWeight: '900',
   },
   heroName: {
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '900',
     marginTop: 4,
   },
   heroUsername: {
-    color: '#60A5FA',
+    color: '#E2F163',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 14,
     gap: 8,
   },
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: '#E2F163',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
   badgeText: {
-    color: '#34D399',
+    color: '#11141A',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   sectionCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 20,
+    backgroundColor: '#161B22',
+    borderRadius: 26,
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 16,
   },
   sectionHeader: {
-    color: '#818CF8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
     marginBottom: 14,
   },
   inputGroup: {
@@ -1022,38 +993,36 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   inputLabel: {
-    color: '#94A3B8',
+    color: '#8E95A0',
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
   randomizeUsernameBtn: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: '#E2F163',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
   randomizeUsernameBtnText: {
-    color: '#818CF8',
+    color: '#11141A',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   input: {
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
+    backgroundColor: '#212631',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
   },
   inputDisabled: {
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(33, 38, 49, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.04)',
     color: '#CBD5E1',
   },
   textArea: {
@@ -1067,13 +1036,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 16,
-    paddingVertical: 12,
+    borderRadius: 20,
+    paddingVertical: 14,
   },
   logoutButtonText: {
     color: '#EF4444',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   friendsContainer: {
     marginTop: 4,
@@ -1085,38 +1054,36 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: '#818CF8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
     marginBottom: 10,
   },
   headerActionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: '#E2F163',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   headerActionPillText: {
-    color: '#60A5FA',
+    color: '#11141A',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   emptyCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 20,
+    backgroundColor: '#161B22',
+    borderRadius: 24,
     padding: 28,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   emptyCardMini: {
-    backgroundColor: '#161F30',
-    borderRadius: 16,
+    backgroundColor: '#161B22',
+    borderRadius: 20,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
@@ -1126,11 +1093,11 @@ const styles = StyleSheet.create({
   emptyCardTitle: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
     marginBottom: 6,
   },
   emptyCardSubtitle: {
-    color: '#94A3B8',
+    color: '#9CA3AF',
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
@@ -1138,20 +1105,20 @@ const styles = StyleSheet.create({
   addFriendPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    backgroundColor: '#E2F163',
+    borderRadius: 16,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     marginTop: 16,
   },
   addFriendPrimaryBtnText: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   friendListCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 20,
+    backgroundColor: '#161B22',
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
@@ -1169,31 +1136,31 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   friendName: {
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   friendUsername: {
-    color: '#60A5FA',
+    color: '#E2F163',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 1,
   },
   friendBio: {
-    color: '#94A3B8',
+    color: '#9CA3AF',
     fontSize: 11,
     marginTop: 2,
   },
   pendingTag: {
     color: '#F59E0B',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 2,
   },
   removeFriendBtn: {
     padding: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   requestActionRow: {
     flexDirection: 'row',
@@ -1201,8 +1168,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   acceptBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 10,
+    backgroundColor: '#E2F163',
+    borderRadius: 12,
     padding: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1211,26 +1178,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelRequestBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
   },
   cancelRequestText: {
     color: '#EF4444',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   addFriendHint: {
-    color: '#94A3B8',
+    color: '#9CA3AF',
     fontSize: 12,
     marginBottom: 14,
     lineHeight: 18,
@@ -1243,10 +1208,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: '#212631',
+    borderRadius: 16,
     paddingHorizontal: 12,
   },
   searchIcon: {
@@ -1254,31 +1217,31 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
     paddingVertical: 10,
   },
   sendRequestBtn: {
-    backgroundColor: '#2563EB',
-    borderRadius: 14,
+    backgroundColor: '#E2F163',
+    borderRadius: 16,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendRequestBtnText: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   infoTipBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: '#161B22',
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   infoTipText: {
     color: '#CBD5E1',

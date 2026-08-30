@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Dumbbell, Home, Search, User, Users } from 'lucide-react-native';
+import { Dumbbell, Home, Activity, Users, User } from 'lucide-react-native';
 
 export type TabBarItem = 'home' | 'explore' | 'workouts' | 'social' | 'profile';
 
@@ -10,54 +10,76 @@ interface TabBarProps {
   onProfilePress: () => void;
 }
 
-const ACTIVE_BG = '#111827';
-const ACTIVE_ICON = '#FFFFFF';
-const INACTIVE_ICON = '#9AA3AF';
+const COLORS = {
+  pill: '#FDFDFC',
+  inactiveBg: '#F1F1F0',
+  activeBg: '#C9BEF0',
+  activeIcon: '#211D2E',
+  inactiveIcon: '#80838C',
+};
 
-// Left + right sit alone in their own circles (search / profile, like the reference)
-const LEFT_ITEM = { key: 'explore' as const, icon: Search };
-const RIGHT_ITEM = { key: 'profile' as const, icon: User };
-// These three live together in the middle pill
-const MIDDLE_ITEMS = [
+// Measured off the reference screenshot (then scaled down to real UI size).
+// The shape is three layers, not one:
+//  - a flat connecting STRIP running the full width (this is the pinched
+//    "waist" you see between icons)
+//  - a wider BUMP circle per tab, same color as the strip, that puffs out
+//    above and below it — this is what makes the scalloped edge
+//  - a smaller ICON circle inset inside each bump, with real gaps between
+//    adjacent icon circles (not touching, unlike my last attempt)
+const SLOT = 64;   // distance between tab centers
+const BUMP = 58;   // diameter of the puffed white circle behind each tab
+const BASE_H = 42; // height of the flat strip connecting the bumps
+const ICON = 50;   // diameter of the actual colored, tappable icon circle
+
+const TAB_ITEMS = [
   { key: 'home' as const, icon: Home },
+  { key: 'explore' as const, icon: Activity },
   { key: 'workouts' as const, icon: Dumbbell },
-  { key: 'social' as const, icon: Users },
+  { key: 'profile' as const, icon: User },
 ];
 
-const AnimatedIcon: React.FC<{
+const CONTAINER_WIDTH = (TAB_ITEMS.length - 1) * SLOT + BUMP;
+
+interface TabButtonProps {
+  isActive: boolean;
+  index: number;
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
-  active: boolean;
   onPress: () => void;
-  size?: number;
-}> = ({ Icon, active, onPress, size = 44 }) => {
-  const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({ isActive, index, Icon, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.spring(progress, {
-      toValue: active ? 1 : 0,
-      friction: 8,
-      tension: 80,
+    Animated.spring(scale, {
+      toValue: isActive ? 1.08 : 1,
       useNativeDriver: true,
+      friction: 6,
+      tension: 90,
     }).start();
-  }, [active, progress]);
-
-  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  }, [isActive, scale]);
 
   return (
-    <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.iconTouchable}>
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={onPress}
+      style={[
+        styles.iconTouchable,
+        { left: index * SLOT + (BUMP - ICON) / 2, top: (BUMP - ICON) / 2 },
+      ]}
+    >
       <Animated.View
         style={[
-          styles.iconCircle,
-          { width: size, height: size, borderRadius: size / 2, transform: [{ scale }] },
+          styles.iconButton,
+          isActive ? styles.iconButtonActive : styles.iconButtonInactive,
+          { transform: [{ scale }] },
         ]}
       >
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFillObject,
-            { borderRadius: size / 2, backgroundColor: ACTIVE_BG, opacity: progress },
-          ]}
+        <Icon
+          size={20}
+          color={isActive ? COLORS.activeIcon : COLORS.inactiveIcon}
+          strokeWidth={isActive ? 2.5 : 2}
         />
-        <Icon size={20} color={active ? ACTIVE_ICON : INACTIVE_ICON} strokeWidth={2} />
       </Animated.View>
     </TouchableOpacity>
   );
@@ -74,85 +96,76 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabPress, onProfile
 
   return (
     <View style={styles.wrapper} pointerEvents="box-none">
-      {/* Left standalone circle */}
-      <View style={[styles.group, styles.singleGroup]}>
-        <AnimatedIcon
-          Icon={LEFT_ITEM.icon}
-          active={activeTab === LEFT_ITEM.key}
-          onPress={() => handlePress(LEFT_ITEM.key)}
-        />
-      </View>
+      <View style={styles.pillContainer}>
+        <View style={styles.baseStrip} />
 
-      {/* Middle pill */}
-      <View style={[styles.group, styles.pillGroup]}>
-        {MIDDLE_ITEMS.map((item) => (
-          <AnimatedIcon
+        {TAB_ITEMS.map((_, index) => (
+          <View key={`bump-${index}`} style={[styles.bump, { left: index * SLOT }]} />
+        ))}
+
+        {TAB_ITEMS.map((item, index) => (
+          <TabButton
             key={item.key}
+            isActive={activeTab === item.key}
+            index={index}
             Icon={item.icon}
-            active={activeTab === item.key}
             onPress={() => handlePress(item.key)}
           />
         ))}
-      </View>
-
-      {/* Right standalone circle */}
-      <View style={[styles.group, styles.singleGroup]}>
-        <AnimatedIcon
-          Icon={RIGHT_ITEM.icon}
-          active={activeTab === RIGHT_ITEM.key}
-          onPress={() => handlePress(RIGHT_ITEM.key)}
-        />
       </View>
     </View>
   );
 };
 
-const shadow = {
-  shadowColor: '#1E293B',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  elevation: 6,
-};
-
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    bottom: 104,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  group: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    ...shadow,
-  },
-  singleGroup: {
-    width: 56,
-    height: 56,
+    bottom: 70,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    height: 56,
-    flex: 1,
-    marginHorizontal: 12,
+  pillContainer: {
+    width: CONTAINER_WIDTH,
+    height: BUMP,
+  },
+  baseStrip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: (BUMP - BASE_H) / 2,
+    height: BASE_H,
+    borderRadius: BASE_H / 2,
+    backgroundColor: COLORS.pill,
+  },
+  bump: {
+    position: 'absolute',
+    top: 0,
+    width: BUMP,
+    height: BUMP,
+    borderRadius: BUMP / 2,
+    backgroundColor: COLORS.pill,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   iconTouchable: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
+    position: 'absolute',
   },
-  iconCircle: {
+  iconButton: {
+    width: ICON,
+    height: ICON,
+    borderRadius: ICON / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+  },
+  iconButtonInactive: {
+    backgroundColor: COLORS.inactiveBg,
+  },
+  iconButtonActive: {
+    backgroundColor: COLORS.activeBg,
   },
 });

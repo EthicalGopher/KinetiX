@@ -255,6 +255,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onSettingsPress={() => setShowSettingsModal(true)}
         onOpenCamera={onOpenCamera}
         onNavigateToTab={onTabChange}
+        featuredExercise={exercisesList[0]}
       />
     );
   }, [activeSubTab, activeTab, currentUser, detailSubTab, exercisesList, onlineCount, onLogout, onOpenCamera, onTabChange, queueCounts, selectedCategory, selectedExercise, selectedModel]);
@@ -341,12 +342,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111622' },
-  subNavBar: { flexDirection: 'row', height: 44, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', backgroundColor: '#111622' },
+  container: { flex: 1, backgroundColor: '#0C0F14' },
+  subNavBar: { flexDirection: 'row', height: 44, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0C0F14' },
   subNavTab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  subNavTabActive: { borderBottomColor: '#2563EB' },
-  subNavTabText: { color: '#94A3B8', fontSize: 13, fontWeight: '700', letterSpacing: 0.8 },
-  subNavTabTextActive: { color: '#FFF' },
+  subNavTabActive: { borderBottomColor: '#E2F163' },
+  subNavTabText: { color: '#8E95A0', fontSize: 13, fontWeight: '700', letterSpacing: 0.8 },
+  subNavTabTextActive: { color: '#E2F163' },
   newsTabRow: { flexDirection: 'row', alignItems: 'center' },
   redBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginLeft: 6 },
   mainContent: { flex: 1 },

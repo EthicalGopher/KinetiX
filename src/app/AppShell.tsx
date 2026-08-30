@@ -301,7 +301,7 @@ export default function AppShell() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111622',
+    backgroundColor: '#0C0F14',
   },
   matchWaitingOverlay: {
     position: 'absolute',
@@ -309,20 +309,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
   },
   matchWaitingCard: {
-    backgroundColor: '#182030',
-    borderRadius: 24,
+    backgroundColor: '#161B22',
+    borderRadius: 28,
     padding: 32,
     alignItems: 'center',
     width: '80%',
     maxWidth: 320,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   matchWaitingTitle: {
     color: '#FFFFFF',

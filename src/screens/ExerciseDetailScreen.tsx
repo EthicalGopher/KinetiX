@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import {
+  ArrowLeft,
   Camera,
   Check,
   ChevronRight,
@@ -288,42 +289,22 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     setActiveSentInvite(null);
   };
 
-  const renderUnderDevelopment = (featureName: string) => (
-    <View style={styles.devContainer}>
-      <View style={styles.devCard}>
-        <View style={styles.devIconBadge}>
-          <Text style={styles.devIconText}>🚧</Text>
-        </View>
-        <Text style={styles.devTitle}>{featureName}</Text>
-        <View style={styles.devPillTag}>
-          <Text style={styles.devPillTagText}>Under Development</Text>
-        </View>
-        <Text style={styles.devSubtitle}>
-          We are working hard to bring you the {featureName} module.
-        </Text>
-        <TouchableOpacity style={styles.devBackButton} activeOpacity={0.8} onPress={onBack}>
-          <Text style={styles.devBackButtonText}>← Return to Exercises</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.detailScreenContainer}>
       <Header
         leftAction={
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.7} onPress={onBack}>
-            <Text style={styles.backButtonText}>←</Text>
+          <TouchableOpacity style={styles.backButtonCircle} activeOpacity={0.8} onPress={onBack}>
+            <ArrowLeft size={18} color="#FFFFFF" />
           </TouchableOpacity>
         }
       />
 
-      {/* Per-Exercise Level & Points Banner Card */}
+      {/* HERO BANNER CARD (Neon Lime & Lavender Highlight Theme) */}
       <View style={styles.detailBannerCard}>
-        <View style={styles.bannerRankRow}>
+        <View style={styles.bannerTopRow}>
           <View style={styles.ratingBadge}>
-            <Text style={{ fontSize: 14, marginRight: 6 }}>{exercise.icon}</Text>
-            <Text style={styles.ratingLabel}>{exercise.name} Score:</Text>
+            <Text style={{ fontSize: 16, marginRight: 6 }}>{exercise.icon}</Text>
+            <Text style={styles.ratingLabel}>{exercise.name} Score</Text>
             <View style={styles.ratingNumBox}>
               <Text style={styles.ratingNumText}>{exercisePoints} PTS</Text>
             </View>
@@ -336,29 +317,27 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
 
         {/* Dynamic Game Level Status & Badges */}
         <View style={styles.bannerStatsRow}>
-          <View style={[styles.starLevelBadge, { borderColor: levelInfo.color }]}>
+          <View style={styles.starLevelBadge}>
             <Text style={styles.levelBadgeEmoji}>{levelInfo.badge}</Text>
-            <Text style={[styles.levelBadgeNumber, { color: levelInfo.color }]}>
-              LVL {levelInfo.level}
-            </Text>
+            <Text style={styles.levelBadgeNumber}>LVL {levelInfo.level}</Text>
           </View>
 
           <View style={styles.userRankInfo}>
             <View style={styles.rankTitleRow}>
               <Text style={styles.rankTitle}>{levelInfo.title}</Text>
-              <View style={[styles.tierTag, { backgroundColor: levelInfo.color + '26' }]}>
-                <Text style={[styles.tierTagText, { color: levelInfo.color }]}>
+              <View style={styles.tierTag}>
+                <Text style={styles.tierTagText}>
                   {exercise.name} {levelInfo.tier}
                 </Text>
               </View>
             </View>
             <Text style={styles.playedWonStats}>
-              Matches: {exerciseMatchesPlayed} • Won: {exerciseMatchesWon} ({winRate}% WR) • {exerciseReps} Reps
+              {exerciseMatchesPlayed} Matches • {exerciseMatchesWon} Wins ({winRate}% WR) • {exerciseReps} Reps
             </Text>
           </View>
         </View>
 
-        {/* Level XP Progress Track for This Game */}
+        {/* Level XP Progress Track */}
         <View style={styles.progressContainer}>
           <View style={styles.progressLabelRow}>
             <Text style={styles.progressLabel}>
@@ -375,25 +354,20 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             <View
               style={[
                 styles.rankProgressFill,
-                { width: `${levelInfo.progressPercent}%`, backgroundColor: levelInfo.color },
+                { width: `${levelInfo.progressPercent}%` },
               ]}
             />
           </View>
         </View>
       </View>
 
-      {/* Sub Navigation Bar */}
+      {/* Sub Navigation Bar (Pill selector from reference) */}
       <View style={styles.detailSubNavTabBar}>
         <TouchableOpacity
           style={[styles.detailSubTabItem, detailTab === 'workouts' && styles.detailSubTabItemActive]}
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('workouts')}
         >
-          <Swords
-            size={13}
-            color={detailTab === 'workouts' ? '#FFFFFF' : '#94A3B8'}
-            style={{ marginRight: 4 }}
-          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -409,11 +383,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('leaderboard')}
         >
-          <Trophy
-            size={13}
-            color={detailTab === 'leaderboard' ? '#FFFFFF' : '#94A3B8'}
-            style={{ marginRight: 4 }}
-          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -429,11 +398,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('how_to_play')}
         >
-          <Info
-            size={13}
-            color={detailTab === 'how_to_play' ? '#FFFFFF' : '#94A3B8'}
-            style={{ marginRight: 4 }}
-          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -449,11 +413,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('shop')}
         >
-          <Gamepad2
-            size={13}
-            color={detailTab === 'shop' ? '#FFFFFF' : '#94A3B8'}
-            style={{ marginRight: 4 }}
-          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -473,84 +432,122 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#6366F1"
-            colors={['#6366F1', '#2563EB']}
+            tintColor="#E2F163"
+            colors={['#E2F163', '#C8B6FF']}
           />
         }
       >
         {detailTab === 'workouts' ? (
           <>
-            <Text style={styles.matchmakingSectionHeader}>
-              {exercise.name.toUpperCase()} QUEUES
-            </Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.matchmakingSectionHeader}>
+                {exercise.name.toUpperCase()} QUEUES
+              </Text>
+            </View>
 
-            {/* QUEUE CARDS (Faceoff, Quick Start, Custom Friend Battle) */}
+            {/* QUEUE CARDS IN REFERENCE WORKOUT PLAN STYLE */}
             {[
               {
                 id: 'faceoff',
-                title: `Faceoff (1v1)`,
-                description: `Live video duel with both player cameras visible and real-time ${exercise.name} rep counting`,
+                title: `${exercise.name} Faceoff (1v1)`,
+                description: `Live video duel with camera feed and AI parallel depth rep counting`,
                 icon: '⚔️',
                 actionText: 'PLAY',
                 isFriendQueue: false,
+                bgTheme: 'dark',
               },
               {
                 id: 'quick_start',
-                title: `Quick Start (1v1)`,
-                description: `Private 1v1 battle (score battle, camera video hidden for privacy)`,
+                title: `${exercise.name} Quick Start (1v1)`,
+                description: `Private 1v1 score duel`,
                 icon: '⚡',
                 actionText: 'PLAY',
                 isFriendQueue: false,
+                bgTheme: 'dark',
               },
               {
                 id: 'custom_friend',
-                title: `Friend Duel (1v1)`,
-                description: `Challenge online friends to a direct 1v1 ${exercise.name} battle with camera or score`,
+                title: `${exercise.name} Friend Duel (1v1)`,
+                description: `Challenge online friends to a direct 1v1 ${exercise.name} battle`,
                 icon: '👥',
-                actionText: 'Play',
+                actionText: 'PLAY',
                 isFriendQueue: true,
+                bgTheme: 'dark',
               },
-            ].map((queue) => (
-              <View key={queue.id} style={styles.queueItemCard}>
-                <View style={styles.queueIconBox}>
-                  <Text style={{ fontSize: 24 }}>{queue.icon}</Text>
-                </View>
-                <View style={styles.queueInfoBox}>
-                  <View style={styles.queueTitleRow}>
-                    <Text style={styles.queueTitleText}>{queue.title}</Text>
-                  </View>
-                  <Text style={styles.queueDescText}>{queue.description}</Text>
-                </View>
-                <TouchableOpacity
+            ].map((queue) => {
+              const isLavender = queue.bgTheme === 'lavender';
+              return (
+                <View
+                  key={queue.id}
                   style={[
-                    styles.joinButton,
-                    queue.isFriendQueue && styles.friendChallengeButton,
+                    styles.queueItemCard,
+                    isLavender && styles.queueItemCardLavender,
                   ]}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    if (queue.isFriendQueue) {
-                      setShowFriendChallengeModal(true);
-                      loadFriendsList();
-                    } else {
-                      onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start');
-                    }
-                  }}
                 >
-                  <Text
+                  <View style={[styles.queueIconBox, isLavender && styles.queueIconBoxLavender]}>
+                    <Text style={{ fontSize: 24 }}>{queue.icon}</Text>
+                  </View>
+
+                  <View style={styles.queueInfoBox}>
+                    <View style={styles.queueTitleRow}>
+                      <Text
+                        style={[
+                          styles.queueTitleText,
+                          isLavender && styles.queueTitleTextLavender,
+                        ]}
+                      >
+                        {queue.title}
+                      </Text>
+                      <View
+                        style={[
+                          styles.queueBadgePill,
+                          isLavender && styles.queueBadgePillLavender,
+                        ]}
+                      >
+                       
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.queueDescText,
+                        isLavender && styles.queueDescTextLavender,
+                      ]}
+                    >
+                      {queue.description}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
                     style={[
-                      styles.joinButtonText,
-                      queue.isFriendQueue && styles.friendChallengeButtonText,
+                      styles.joinButton,
+                      isLavender && styles.joinButtonLavender,
                     ]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      if (queue.isFriendQueue) {
+                        setShowFriendChallengeModal(true);
+                        loadFriendsList();
+                      } else {
+                        onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start');
+                      }
+                    }}
                   >
-                    {queue.actionText}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+                    <Text
+                      style={[
+                        styles.joinButtonText,
+                        isLavender && styles.joinButtonTextLavender,
+                      ]}
+                    >
+                      {queue.actionText}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </>
         ) : detailTab === 'leaderboard' ? (
           <View style={styles.leaderboardContainer}>
-            {/* Top User Personal Ranking Summary for this Game */}
+            {/* My Rank Summary */}
             <View style={styles.myRankCard}>
               <View style={styles.myRankLeft}>
                 <Avatar
@@ -576,19 +573,19 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
               </View>
             </View>
 
-            {/* Standings Header for this Exercise */}
+            {/* Standings List */}
             <View style={styles.standingsHeaderRow}>
               <Text style={styles.standingsHeaderTitle}>
                 🏆 {exercise.name.toUpperCase()} LEADERBOARD
               </Text>
               <TouchableOpacity activeOpacity={0.7} onPress={loadLeaderboardData}>
-                <Text style={styles.standingsRefreshText}>🔄 Refresh</Text>
+                <Text style={styles.standingsRefreshText}>Refresh 🔄</Text>
               </TouchableOpacity>
             </View>
 
             {loadingLeaderboard ? (
               <View style={styles.centerLoadingBox}>
-                <ActivityIndicator size="small" color="#6366F1" />
+                <ActivityIndicator size="small" color="#E2F163" />
                 <Text style={styles.loadingLeaderboardText}>
                   Loading {exercise.name} rankings...
                 </Text>
@@ -621,7 +618,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         isMe && styles.myHighlightRow,
                       ]}
                     >
-                      {/* Rank Position */}
                       <View style={styles.rankBadgeBox}>
                         {isTop1 ? (
                           <Text style={styles.podiumEmoji}>🥇</Text>
@@ -634,7 +630,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         )}
                       </View>
 
-                      {/* Avatar */}
                       <View style={styles.leaderboardAvatarWrapper}>
                         <Avatar
                           username={entry.username}
@@ -643,7 +638,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         />
                       </View>
 
-                      {/* Username & Level */}
                       <View style={styles.leaderboardNameBox}>
                         <Text
                           style={[styles.leaderboardUsername, isMe && styles.myUsernameText]}
@@ -657,7 +651,6 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         </Text>
                       </View>
 
-                      {/* Points */}
                       <View style={styles.leaderboardScoreBox}>
                         <Text style={styles.leaderboardScoreNum}>{entry.points}</Text>
                         <Text style={styles.leaderboardScoreUnit}>PTS</Text>
@@ -671,39 +664,39 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
         ) : detailTab === 'how_to_play' ? (
           <View style={styles.rulesContainer}>
             <View style={styles.tabInfoCard}>
-              <Text style={styles.tabInfoTitle}>{exercise.name} Scoring Rules</Text>
+              <Text style={styles.tabInfoTitle}>⚡ {exercise.name} Scoring Rules</Text>
               <View style={styles.rulePointRow}>
-                <View style={[styles.rulePointBadge, { backgroundColor: '#10B981' }]}>
-                  <Text style={styles.rulePointBadgeText}>+10 PTS</Text>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#E2F163' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>+10 PTS</Text>
                 </View>
                 <Text style={styles.rulePointDesc}>Awarded for winning a {exercise.name} duel.</Text>
               </View>
 
               <View style={styles.rulePointRow}>
-                <View style={[styles.rulePointBadge, { backgroundColor: '#F59E0B' }]}>
-                  <Text style={styles.rulePointBadgeText}>+5 PTS</Text>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#C8B6FF' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>+5 PTS</Text>
                 </View>
                 <Text style={styles.rulePointDesc}>Awarded to both players in a draw.</Text>
               </View>
 
               <View style={styles.rulePointRow}>
-                <View style={[styles.rulePointBadge, { backgroundColor: '#EF4444' }]}>
-                  <Text style={styles.rulePointBadgeText}>-10 PTS</Text>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#FFD6E0' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>-10 PTS</Text>
                 </View>
                 <Text style={styles.rulePointDesc}>Deducted on match defeat (floor: 0).</Text>
               </View>
             </View>
 
             <View style={styles.tabInfoCard}>
-              <Text style={styles.tabInfoTitle}>{exercise.name} Level Tiers</Text>
+              <Text style={styles.tabInfoTitle}>🎖️ {exercise.name} Level Tiers</Text>
               <View style={styles.tierGrid}>
                 {[
-                  { lvl: 'LVL 1', name: 'Rookie ', range: '0 - 99 pts' },
-                  { lvl: 'LVL 2', name: 'Challenger ', range: '100 - 249 pts' },
-                  { lvl: 'LVL 3', name: 'Warrior ', range: '250 - 499 pts' },
-                  { lvl: 'LVL 4', name: 'Master ', range: '500 - 999 pts' },
-                  { lvl: 'LVL 5', name: 'Champion ', range: '1,000 - 1,999 pts' },
-                  { lvl: 'LVL 6', name: 'Grandmaster ', range: '2,000+ pts' },
+                  { lvl: 'LVL 1', name: 'Rookie 🥉', range: '0 - 99 pts' },
+                  { lvl: 'LVL 2', name: 'Challenger 🥈', range: '100 - 249 pts' },
+                  { lvl: 'LVL 3', name: 'Warrior 🥇', range: '250 - 499 pts' },
+                  { lvl: 'LVL 4', name: 'Master 💎', range: '500 - 999 pts' },
+                  { lvl: 'LVL 5', name: 'Champion 👑', range: '1,000 - 1,999 pts' },
+                  { lvl: 'LVL 6', name: 'Grandmaster ⚡', range: '2,000+ pts' },
                 ].map((tier, i) => (
                   <View key={i} style={styles.tierCardItem}>
                     <Text style={styles.tierCardLvl}>{tier.lvl}</Text>
@@ -713,21 +706,16 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 ))}
               </View>
             </View>
-
+          </View>
+        ) : (
+          <View style={styles.rulesContainer}>
             <View style={styles.tabInfoCard}>
-              <Text style={styles.tabInfoTitle}>Camera Positioning Guide</Text>
+              <Text style={styles.tabInfoTitle}>🛍️ Exercise Upgrades & Avatars</Text>
               <Text style={styles.tabInfoBody}>
-                {[
-                  '1. Stand 5-7 feet away from your camera in landscape orientation.',
-                  '2. Ensure your full body is clearly visible in the video frame.',
-                  '3. Perform each rep cleanly and with good form.',
-                  '4. The MediaPipe AI pose tracker will automatically validate form and count repetitions.',
-                ].join('\n\n')}
+                Unlock custom DiceBear avatar themes and special battle particle trails as you advance your mastery tiers!
               </Text>
             </View>
           </View>
-        ) : (
-          renderUnderDevelopment('Item Shop & Upgrades')
         )}
       </ScrollView>
 
@@ -744,7 +732,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           <View style={styles.friendModalCard}>
             <View style={styles.friendModalHeader}>
               <View style={styles.btnRow}>
-                <Users size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+                <Users size={18} color="#11141A" style={{ marginRight: 6 }} />
                 <Text style={styles.friendModalTitle}>
                   CHALLENGE A FRIEND (1v1 {exercise.name.toUpperCase()})
                 </Text>
@@ -756,7 +744,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   setShowFriendChallengeModal(false);
                 }}
               >
-                <X size={18} color="#94A3B8" />
+                <X size={18} color="#11141A" />
               </TouchableOpacity>
             </View>
 
@@ -764,7 +752,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             {activeSentInvite ? (
               <View style={styles.waitingInsideModalBox}>
                 <View style={styles.inviteWaitingIconBox}>
-                  <Swords size={32} color="#F59E0B" />
+                  <Swords size={32} color="#11141A" />
                 </View>
                 <Text style={styles.inviteWaitingTitle}>Challenge Sent!</Text>
                 <Text style={styles.inviteWaitingDesc}>
@@ -772,7 +760,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   {activeSentInvite.mode === 'faceoff' ? 'Faceoff' : 'Score Duel'}.
                 </Text>
                 <View style={styles.inviteTimerBox}>
-                  <ActivityIndicator size="small" color="#6366F1" style={{ marginRight: 8 }} />
+                  <ActivityIndicator size="small" color="#11141A" style={{ marginRight: 8 }} />
                   <Text style={styles.inviteTimerText}>
                     Waiting for response ({inviteTimeoutSeconds}s)...
                   </Text>
@@ -799,7 +787,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   >
                     <Video
                       size={14}
-                      color={selectedBattleMode === 'faceoff' ? '#FFFFFF' : '#94A3B8'}
+                      color="#11141A"
                       style={{ marginRight: 5 }}
                     />
                     <Text
@@ -808,7 +796,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         selectedBattleMode === 'faceoff' && styles.modeToggleTextActive,
                       ]}
                     >
-                      Faceoff (Camera Duel)
+                      Faceoff (Camera)
                     </Text>
                   </TouchableOpacity>
 
@@ -822,7 +810,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   >
                     <Zap
                       size={14}
-                      color={selectedBattleMode === 'quickjoin' ? '#FFFFFF' : '#94A3B8'}
+                      color="#11141A"
                       style={{ marginRight: 5 }}
                     />
                     <Text
@@ -831,7 +819,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         selectedBattleMode === 'quickjoin' && styles.modeToggleTextActive,
                       ]}
                     >
-                      Score Duel (Private)
+                      Score Duel
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -839,11 +827,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 {/* Direct Challenge by Username Write-in */}
                 <View style={styles.directChallengeRow}>
                   <View style={styles.directInputWrap}>
-                    <Search size={14} color="#64748B" style={{ marginRight: 6 }} />
+                    <Search size={14} color="#6B7280" style={{ marginRight: 6 }} />
                     <TextInput
                       style={styles.directInput}
-                      placeholder="Challenge any athlete by @username..."
-                      placeholderTextColor="#64748B"
+                      placeholder="Challenge athlete by @username..."
+                      placeholderTextColor="#6B7280"
                       value={customUsername}
                       onChangeText={setCustomUsername}
                       autoCapitalize="none"
@@ -867,12 +855,12 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 <ScrollView style={styles.friendsModalScroll} showsVerticalScrollIndicator={false}>
                   {loadingFriends ? (
                     <View style={styles.friendsLoadingBox}>
-                      <ActivityIndicator size="small" color="#6366F1" />
+                      <ActivityIndicator size="small" color="#11141A" />
                       <Text style={styles.friendsLoadingText}>Loading friends list...</Text>
                     </View>
                   ) : friends.length === 0 ? (
                     <View style={styles.emptyFriendsBox}>
-                      <Users size={28} color="#64748B" style={{ marginBottom: 6 }} />
+                      <Users size={28} color="#4B5563" style={{ marginBottom: 6 }} />
                       <Text style={styles.emptyFriendsTitle}>No Friends Added Yet</Text>
                       <Text style={styles.emptyFriendsSubtitle}>
                         Add friends in your Profile tab to send them instant 1v1 battle invites!
@@ -909,10 +897,10 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                               disabled={isChallengingThis}
                             >
                               {isChallengingThis ? (
-                                <ActivityIndicator size="small" color="#000000" />
+                                <ActivityIndicator size="small" color="#FFFFFF" />
                               ) : (
                                 <View style={styles.btnRow}>
-                                  <Swords size={12} color="#000000" style={{ marginRight: 4 }} />
+                                  <Swords size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
                                   <Text style={styles.challengeActionBtnText}>CHALLENGE</Text>
                                 </View>
                               )}
@@ -933,35 +921,31 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  detailScreenContainer: { flex: 1, backgroundColor: '#0D111A' },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E293B',
+  detailScreenContainer: { flex: 1, backgroundColor: '#0C0F14' },
+  backButtonCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#181D26',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  backButtonText: { color: '#FFF', fontSize: 20, fontWeight: '700' },
   btnRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   detailBannerCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 20,
+    backgroundColor: '#161B22',
+    borderRadius: 26,
     marginHorizontal: 16,
-    marginTop: 8,
-    padding: 16,
+    marginTop: 6,
+    padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  bannerRankRow: {
+  bannerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -971,53 +955,51 @@ const styles = StyleSheet.create({
   ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
+    backgroundColor: '#212631',
+    borderRadius: 14,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   ratingLabel: { color: '#E2E8F0', fontSize: 12, fontWeight: '700' },
   ratingNumBox: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#E2F163', // Neon lime score box
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginLeft: 6,
   },
-  ratingNumText: { color: '#FFF', fontSize: 12, fontWeight: '900' },
+  ratingNumText: { color: '#11141A', fontSize: 12, fontWeight: '900' },
   scoreRulesPill: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: '#C8B6FF', // Soft lavender rules pill
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
-  scoreRulesText: { color: '#A5B4FC', fontSize: 10, fontWeight: '800' },
+  scoreRulesText: { color: '#11141A', fontSize: 10, fontWeight: '800' },
   bannerStatsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   starLevelBadge: {
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
+    backgroundColor: '#212631',
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
+    borderColor: '#E2F163',
   },
   levelBadgeEmoji: { fontSize: 20 },
-  levelBadgeNumber: { fontSize: 11, fontWeight: '900', marginTop: 2 },
+  levelBadgeNumber: { fontSize: 11, fontWeight: '900', marginTop: 2, color: '#E2F163' },
   userRankInfo: { marginLeft: 14, flex: 1 },
   rankTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rankTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '800' },
+  rankTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
   tierTag: {
+    backgroundColor: 'rgba(226, 241, 99, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
   },
-  tierTagText: { fontSize: 10, fontWeight: '800' },
-  playedWonStats: { color: '#94A3B8', fontSize: 12, marginTop: 3 },
+  tierTagText: { fontSize: 10, fontWeight: '800', color: '#E2F163' },
+  playedWonStats: { color: '#9CA3AF', fontSize: 11, marginTop: 3 },
   progressContainer: { marginTop: 14 },
   progressLabelRow: {
     flexDirection: 'row',
@@ -1026,109 +1008,114 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   progressLabel: { color: '#CBD5E1', fontSize: 11, fontWeight: '700' },
-  progressSubLabel: { color: '#818CF8', fontSize: 11, fontWeight: '700' },
+  progressSubLabel: { color: '#E2F163', fontSize: 11, fontWeight: '800' },
   rankProgressTrack: {
     height: 8,
     borderRadius: 6,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#212631',
     overflow: 'hidden',
   },
-  rankProgressFill: { height: '100%', borderRadius: 6 },
+  rankProgressFill: { height: '100%', borderRadius: 6, backgroundColor: '#E2F163' },
   detailSubNavTabBar: {
     flexDirection: 'row',
     marginTop: 12,
     paddingHorizontal: 16,
-    gap: 6,
+    gap: 8,
   },
   detailSubTabItem: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#161F30',
+    borderRadius: 20,
+    backgroundColor: '#161B22',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   detailSubTabItemActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#60A5FA',
+    backgroundColor: '#FFFFFF', // Active white pill
   },
-  detailSubTabText: { color: '#94A3B8', fontSize: 10, fontWeight: '800' },
-  detailSubTabTextActive: { color: '#FFFFFF' },
+  detailSubTabText: { color: '#8E95A0', fontSize: 11, fontWeight: '800' },
+  detailSubTabTextActive: { color: '#11141A' },
   detailScrollView: { flex: 1 },
-  detailScrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
+  detailScrollContent: { paddingHorizontal: 16, paddingBottom: 110 },
+  sectionHeaderRow: { marginTop: 16, marginBottom: 10 },
   matchmakingSectionHeader: {
-    color: '#818CF8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginTop: 16,
-    marginBottom: 10,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   queueItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161F30',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: '#161B22',
+    borderRadius: 26,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  queueItemCardLavender: {
+    backgroundColor: '#C8B6FF', // Highlighted lavender card
+    borderColor: 'transparent',
   },
   queueIconBox: {
     width: 48,
     height: 48,
-    borderRadius: 14,
-    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    backgroundColor: '#212631',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  queueIconBoxLavender: {
+    backgroundColor: 'rgba(17, 20, 26, 0.1)',
   },
   queueInfoBox: { flex: 1, marginLeft: 12, marginRight: 8 },
   queueTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  queueTitleText: { color: '#F8FAFC', fontSize: 15, fontWeight: '800' },
+  queueTitleText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  queueTitleTextLavender: { color: '#11141A' },
   queueBadgePill: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 6,
+    backgroundColor: '#212631',
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 8,
   },
-  queueBadgePillText: { color: '#FBBF24', fontSize: 9, fontWeight: '800' },
-  queueDescText: { color: '#94A3B8', fontSize: 11, marginTop: 4, lineHeight: 15 },
+  queueBadgePillLavender: {
+    backgroundColor: '#FFFFFF',
+  },
+  queueBadgePillText: { color: '#E2F163', fontSize: 9, fontWeight: '800' },
+  queueBadgePillTextLavender: { color: '#11141A' },
+  queueDescText: { color: '#9CA3AF', fontSize: 11, marginTop: 4, lineHeight: 15 },
+  queueDescTextLavender: { color: '#374151' },
   joinButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
+    backgroundColor: '#E2F163',
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  joinButtonText: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
-  friendChallengeButton: {
+  joinButtonLavender: {
+    backgroundColor: '#11141A',
   },
-  friendChallengeButtonText: {
-    color: '#FFF',
-  },
+  joinButtonText: { color: '#11141A', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  joinButtonTextLavender: { color: '#FFFFFF' },
   leaderboardContainer: { marginTop: 14 },
   myRankCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#6366F1',
+    backgroundColor: '#C8B6FF',
+    borderRadius: 24,
+    padding: 14,
     marginBottom: 16,
   },
   myRankLeft: { flexDirection: 'row', alignItems: 'center' },
   myRankInfo: { marginLeft: 10 },
-  myRankName: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  myRankTier: { color: '#A5B4FC', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  myRankName: { color: '#11141A', fontSize: 15, fontWeight: '900' },
+  myRankTier: { color: '#374151', fontSize: 11, fontWeight: '700', marginTop: 2 },
   myRankRight: { alignItems: 'flex-end' },
-  myRankPoints: { color: '#38BDF8', fontSize: 16, fontWeight: '900' },
-  myRankSub: { color: '#94A3B8', fontSize: 11, marginTop: 2 },
+  myRankPoints: { color: '#11141A', fontSize: 18, fontWeight: '900' },
+  myRankSub: { color: '#374151', fontSize: 11, marginTop: 2, fontWeight: '700' },
   standingsHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1136,23 +1123,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   standingsHeaderTitle: {
-    color: '#818CF8',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
-  standingsRefreshText: { color: '#A5B4FC', fontSize: 12, fontWeight: '700' },
+  standingsRefreshText: { color: '#E2F163', fontSize: 12, fontWeight: '700' },
   centerLoadingBox: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
     gap: 8,
   },
-  loadingLeaderboardText: { color: '#94A3B8', fontSize: 12 },
+  loadingLeaderboardText: { color: '#9CA3AF', fontSize: 12 },
   emptyLeaderboardBox: {
     alignItems: 'center',
-    backgroundColor: '#161F30',
-    borderRadius: 18,
+    backgroundColor: '#161B22',
+    borderRadius: 24,
     padding: 24,
     marginTop: 8,
     borderWidth: 1,
@@ -1160,15 +1147,15 @@ const styles = StyleSheet.create({
   },
   emptyLeaderboardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 8 },
   emptyLeaderboardDesc: {
-    color: '#94A3B8',
+    color: '#9CA3AF',
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 18,
   },
   leaderboardListBox: {
-    backgroundColor: '#161F30',
-    borderRadius: 18,
+    backgroundColor: '#161B22',
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
@@ -1176,33 +1163,34 @@ const styles = StyleSheet.create({
   leaderboardRowItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
-  top1Row: { backgroundColor: 'rgba(245, 158, 11, 0.08)' },
-  myHighlightRow: { backgroundColor: 'rgba(99, 102, 241, 0.12)' },
+  top1Row: { backgroundColor: 'rgba(226, 241, 99, 0.06)' },
+  myHighlightRow: { backgroundColor: 'rgba(200, 182, 255, 0.1)' },
   rankBadgeBox: { width: 34, alignItems: 'center', justifyContent: 'center' },
   podiumEmoji: { fontSize: 20 },
-  rankNumberText: { color: '#94A3B8', fontSize: 13, fontWeight: '800' },
+  rankNumberText: { color: '#8E95A0', fontSize: 13, fontWeight: '800' },
   leaderboardAvatarWrapper: { marginLeft: 4, marginRight: 10 },
   leaderboardNameBox: { flex: 1 },
   leaderboardUsername: { color: '#F8FAFC', fontSize: 14, fontWeight: '700' },
-  myUsernameText: { color: '#60A5FA', fontWeight: '800' },
-  leaderboardSubText: { color: '#94A3B8', fontSize: 11, marginTop: 2 },
+  myUsernameText: { color: '#E2F163', fontWeight: '800' },
+  leaderboardSubText: { color: '#9CA3AF', fontSize: 11, marginTop: 2 },
   leaderboardScoreBox: { alignItems: 'flex-end' },
-  leaderboardScoreNum: { color: '#38BDF8', fontSize: 15, fontWeight: '900' },
-  leaderboardScoreUnit: { color: '#64748B', fontSize: 9, fontWeight: '800' },
+  leaderboardScoreNum: { color: '#E2F163', fontSize: 15, fontWeight: '900' },
+  leaderboardScoreUnit: { color: '#6B7280', fontSize: 9, fontWeight: '800' },
   rulesContainer: { marginTop: 14, gap: 12 },
   tabInfoCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 18,
-    padding: 16,
+    backgroundColor: '#161B22',
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  tabInfoTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '800', marginBottom: 12 },
+  tabInfoTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', marginBottom: 12 },
+  tabInfoBody: { color: '#CBD5E1', fontSize: 13, lineHeight: 20 },
   rulePointRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1215,7 +1203,7 @@ const styles = StyleSheet.create({
     minWidth: 72,
     alignItems: 'center',
   },
-  rulePointBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
+  rulePointBadgeText: { fontSize: 11, fontWeight: '900' },
   rulePointDesc: { color: '#CBD5E1', fontSize: 12, marginLeft: 12, flex: 1 },
   tierGrid: {
     flexDirection: 'row',
@@ -1224,16 +1212,13 @@ const styles = StyleSheet.create({
   },
   tierCardItem: {
     width: '48%',
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: '#212631',
+    borderRadius: 16,
+    padding: 12,
   },
-  tierCardLvl: { color: '#818CF8', fontSize: 10, fontWeight: '800' },
-  tierCardName: { color: '#F8FAFC', fontSize: 12, fontWeight: '700', marginTop: 2 },
-  tierCardRange: { color: '#94A3B8', fontSize: 10, marginTop: 2 },
-  tabInfoBody: { color: '#CBD5E1', fontSize: 13, lineHeight: 20 },
+  tierCardLvl: { color: '#E2F163', fontSize: 10, fontWeight: '800' },
+  tierCardName: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 2 },
+  tierCardRange: { color: '#9CA3AF', fontSize: 10, marginTop: 2 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -1242,19 +1227,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   friendModalCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 24,
+    backgroundColor: '#C8B6FF', // Soft pastel lavender modal card
+    borderRadius: 28,
     padding: 20,
     width: '100%',
     maxWidth: 420,
     maxHeight: '85%',
-    borderWidth: 1.5,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
   },
   friendModalHeader: {
     flexDirection: 'row',
@@ -1263,15 +1241,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   friendModalTitle: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   modalCloseBtn: {
     padding: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(17, 20, 26, 0.08)',
   },
   waitingInsideModalBox: {
     alignItems: 'center',
@@ -1281,65 +1259,59 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   inviteWaitingTitle: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 20,
     fontWeight: '900',
   },
   inviteWaitingDesc: {
-    color: '#94A3B8',
+    color: '#374151',
     fontSize: 13,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
   },
   highlightFriend: {
-    color: '#60A5FA',
-    fontWeight: '800',
+    color: '#11141A',
+    fontWeight: '900',
   },
   inviteTimerBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 8,
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   inviteTimerText: {
-    color: '#A5B4FC',
+    color: '#11141A',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   cancelInviteBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 14,
-    paddingVertical: 10,
+    backgroundColor: '#11141A',
+    borderRadius: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     marginTop: 18,
     width: '100%',
     alignItems: 'center',
   },
   cancelInviteBtnText: {
-    color: '#EF4444',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
   },
   modeToggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
+    backgroundColor: 'rgba(17, 20, 26, 0.08)',
+    borderRadius: 16,
     padding: 4,
     marginBottom: 12,
     gap: 4,
@@ -1350,19 +1322,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   modeToggleBtnActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#FFFFFF',
   },
   modeToggleText: {
-    color: '#94A3B8',
+    color: '#4B5563',
     fontSize: 11,
     fontWeight: '700',
   },
   modeToggleTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#11141A',
+    fontWeight: '900',
   },
   directChallengeRow: {
     flexDirection: 'row',
@@ -1373,29 +1345,28 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 12,
   },
   directInput: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    fontWeight: '600',
   },
   directSendBtn: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    backgroundColor: '#11141A',
+    borderRadius: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   friendsSubHeader: {
-    color: '#818CF8',
+    color: '#11141A',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: 0.6,
     marginBottom: 8,
   },
@@ -1409,41 +1380,37 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   friendsLoadingText: {
-    color: '#94A3B8',
+    color: '#374151',
     fontSize: 11,
   },
   emptyFriendsBox: {
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   emptyFriendsTitle: {
-    color: '#FFFFFF',
+    color: '#11141A',
     fontSize: 13,
     fontWeight: '800',
   },
   emptyFriendsSubtitle: {
-    color: '#94A3B8',
+    color: '#4B5563',
     fontSize: 11,
     textAlign: 'center',
     marginTop: 2,
   },
   friendsRosterBox: {
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   friendRosterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+    borderBottomColor: 'rgba(17, 20, 26, 0.05)',
   },
   friendRosterAvatarWrap: {
     position: 'relative',
@@ -1455,9 +1422,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#10B981',
+    backgroundColor: '#E2F163',
     borderWidth: 1.5,
-    borderColor: '#0F172A',
+    borderColor: '#FFFFFF',
   },
   friendRosterInfo: {
     flex: 1,
@@ -1465,61 +1432,25 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   friendRosterName: {
-    color: '#F8FAFC',
+    color: '#11141A',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   friendRosterUsername: {
-    color: '#60A5FA',
+    color: '#4B5563',
     fontSize: 11,
     marginTop: 1,
   },
   challengeActionBtn: {
-    backgroundColor: '#F59E0B',
-    borderRadius: 10,
+    backgroundColor: '#11141A',
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   challengeActionBtnText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-  devContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  devCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 24,
-    padding: 24,
-    width: '100%',
-    maxWidth: 360,
-    alignItems: 'center',
-  },
-  devIconBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: '#1D4ED8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  devIconText: { fontSize: 28 },
-  devTitle: { color: '#FFF', fontSize: 24, fontWeight: '800', marginTop: 16 },
-  devPillTag: {
-    marginTop: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  devPillTagText: { color: '#FBBF24', fontSize: 11, fontWeight: '700' },
-  devSubtitle: { color: '#CBD5E1', textAlign: 'center', lineHeight: 22, marginTop: 14 },
-  devBackButton: {
-    marginTop: 18,
-    backgroundColor: '#2563EB',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  devBackButtonText: { color: '#FFF', fontWeight: '700' },
 });

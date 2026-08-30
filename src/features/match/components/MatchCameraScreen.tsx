@@ -251,12 +251,12 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 // Scoreboard
 // ---------------------------------------------------------------------------
 
-const SELF_COLOR = '#3B82F6';
-const OPPONENT_COLOR = '#EF4444';
-const WIN_COLOR = '#10B981';
-const LOSE_COLOR = '#EF4444';
-const DRAW_COLOR = '#FBBF24';
-const NEUTRAL_TIMER_COLOR = '#818CF8';
+const SELF_COLOR = '#E2F163'; // Neon lime from reference
+const OPPONENT_COLOR = '#C8B6FF'; // Pastel lavender from reference
+const WIN_COLOR = '#E2F163';
+const LOSE_COLOR = '#FF6B6B';
+const DRAW_COLOR = '#C8B6FF';
+const NEUTRAL_TIMER_COLOR = '#FFFFFF';
 
 /** Small bounce whenever `value` changes, skipping the initial mount. */
 function useBumpAnim(value: number): Animated.Value {

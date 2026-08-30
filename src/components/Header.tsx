@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Bell, Flame } from 'lucide-react-native';
 import { Avatar } from './Avatar';
 import { useMatchmakingStore } from '../store/matchmakingStore';
 import { useUserStore } from '../store/userStore';
@@ -14,7 +15,7 @@ export interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  title = 'plato',
+  title,
   username: propUsername,
   onlineCount: propOnlineCount,
   onProfilePress,
@@ -30,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
     profile?.full_name ||
     user?.user_metadata?.username ||
     user?.email?.split('@')[0] ||
-    'athlete';
+    'James';
 
   const avatarConfig = profile?.avatar_config;
   const displayOnlineCount = propOnlineCount !== undefined ? propOnlineCount : storeOnline;
@@ -45,104 +46,117 @@ export const Header: React.FC<HeaderProps> = ({
 
   const leftContent = leftAction ?? (
     <TouchableOpacity
-      style={styles.avatarContainer}
+      style={styles.profileHeaderRow}
       activeOpacity={0.8}
       onPress={handleProfilePress}
     >
-      <View style={styles.avatarCircle}>
-        <Avatar username={activeUsername} size={36} config={avatarConfig} />
+      <View style={styles.avatarBorder}>
+        <Avatar username={activeUsername} size={42} config={avatarConfig} />
       </View>
-      <View style={styles.onlineDot} />
+      <View style={styles.nameTextBox}>
+        <Text style={styles.greetingText} numberOfLines={1}>
+          HI {activeUsername.toUpperCase()}
+        </Text>
+        <View style={styles.statusRow}>
+          <Flame size={12} color="#E2F163" style={{ marginRight: 3 }} />
+          <Text style={styles.subtitleText}>Fitness Freak</Text>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
   const defaultRightAction = (
-    <View style={styles.pointsBadge}>
-      <View style={styles.greenDot} />
-      <Text style={styles.pointsText}>{displayOnlineCount}</Text>
+    <View style={styles.onlinePillBadge}>
+      <View style={styles.onlineDotIndicator} />
+      <Text style={styles.onlineCountText}>{displayOnlineCount}</Text>
     </View>
   );
 
   return (
     <View style={styles.header}>
-      <View style={styles.headerSlot}>{leftContent}</View>
-      <Text style={styles.title}>{title}</Text>
-      <View style={[styles.headerSlot, styles.rightSlot]}>
-        {rightAction ?? defaultRightAction}
-      </View>
+      <View style={styles.leftSlot}>{leftContent}</View>
+      {title ? <Text style={styles.centerTitle}>{title}</Text> : null}
+      <View style={styles.rightSlot}>{rightAction ?? defaultRightAction}</View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   header: {
-    height: 52,
+    height: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: '#111622',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 18,
+    backgroundColor: '#0C0F14',
   },
-  headerSlot: {
-    width: 92,
+  leftSlot: {
+    flex: 1,
     alignItems: 'flex-start',
   },
   rightSlot: {
     alignItems: 'flex-end',
   },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E293B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#6366F1',
-  },
-  onlineDot: {
-    position: 'absolute',
-    bottom: -1,
-    right: -1,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#111622',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  pointsBadge: {
+  profileHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
   },
-  greenDot: {
+  avatarBorder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E232B',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  nameTextBox: {
+    marginLeft: 12,
+  },
+  greetingText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  subtitleText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  centerTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  onlinePillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#181D26',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 6,
+  },
+  onlineDotIndicator: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#10B981',
-    marginRight: 6,
+    backgroundColor: '#E2F163', // Neon lime online dot
   },
-  pointsText: {
-    color: '#34D399',
-    fontSize: 13,
-    fontWeight: '700',
+  onlineCountText: {
+    color: '#E2F163',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
 });
