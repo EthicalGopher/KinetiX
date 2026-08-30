@@ -167,6 +167,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     });
   };
 
+  const handleStartCustomMatch = (
+    opponent: string,
+    mode: 'faceoff' | 'quickjoin',
+    exerciseId: string,
+    customRoomId?: string
+  ) => {
+    const userId =
+      currentUser?.user_metadata?.username ||
+      currentUser?.email ||
+      currentUser?.user?.id ||
+      currentUser?.id ||
+      'player';
+
+    if (customRoomId) {
+      connectMatchSocket(userId, customRoomId);
+    }
+    onOpenMatchCamera(opponent, mode, exerciseId);
+  };
+
   const renderUnderDevelopment = (featureName: string) => (
     <View style={styles.devContainer}>
       <View style={styles.devCard}>
@@ -190,6 +209,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onBack={() => setSelectedExercise(null)}
           onJoinQueue={handleJoinQueue}
           onDetailTabChange={setDetailSubTab}
+          onStartCustomMatch={handleStartCustomMatch}
         />
       );
     }

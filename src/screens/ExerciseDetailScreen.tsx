@@ -1,13 +1,39 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import {
+  Camera,
+  Check,
+  ChevronRight,
+  Flame,
+  Gamepad2,
+  Info,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Shield,
+  Sparkles,
+  Swords,
+  Trophy,
+  UserCheck,
+  UserPlus,
+  Users,
+  Video,
+  X,
+  Zap,
+} from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Header } from '../components/Header';
 import { useUserStore } from '../store/userStore';
@@ -19,6 +45,13 @@ import {
   LevelInfo,
   UserExerciseStats,
 } from '../utils/rankingService';
+import { fetchFriends, FriendshipItem } from '../utils/friendService';
+import {
+  sendCustomBattleInvite,
+  initBattleChannel,
+  BattleMode,
+  BattleInvite,
+} from '../utils/customBattleService';
 
 export interface ExerciseItem {
   id: string;
@@ -36,6 +69,12 @@ interface ExerciseDetailScreenProps {
   onBack: () => void;
   onJoinQueue: (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start') => void;
   onDetailTabChange: (tab: 'workouts' | 'shop' | 'leaderboard' | 'how_to_play') => void;
+  onStartCustomMatch?: (
+    opponent: string,
+    mode: 'faceoff' | 'quickjoin',
+    exerciseId: string,
+    customRoomId?: string
+  ) => void;
 }
 
 export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
@@ -44,12 +83,24 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
   onBack,
   onJoinQueue,
   onDetailTabChange,
+  onStartCustomMatch,
 }) => {
   const { profile, user, refreshProfile } = useUserStore();
   const [exerciseStats, setExerciseStats] = useState<UserExerciseStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<ExerciseLeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Custom Challenge State & Modals
+  const [showFriendChallengeModal, setShowFriendChallengeModal] = useState<boolean>(false);
+  const [friends, setFriends] = useState<FriendshipItem[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [selectedBattleMode, setSelectedBattleMode] = useState<BattleMode>('faceoff');
+  const [customUsername, setCustomUsername] = useState<string>('');
+  const [challengingFriendId, setChallengingFriendId] = useState<string | null>(null);
+  const [activeSentInvite, setActiveSentInvite] = useState<BattleInvite | null>(null);
+  const [inviteTimeoutSeconds, setInviteTimeoutSeconds] = useState<number>(30);
+  const inviteTimerRef = useRef<any>(null);
 
   // Exercise-specific points and match counters
   const exercisePoints = exerciseStats?.points ?? 0;
@@ -86,9 +137,23 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     }
   }, [exercise.id]);
 
+  const loadFriendsList = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingFriends(true);
+    try {
+      const list = await fetchFriends(user.id);
+      setFriends(list);
+    } catch (e) {
+      console.warn('Failed to load friends:', e);
+    } finally {
+      setLoadingFriends(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     loadExerciseData();
-  }, [loadExerciseData]);
+    loadFriendsList();
+  }, [loadExerciseData, loadFriendsList]);
 
   useEffect(() => {
     if (detailTab === 'leaderboard') {
@@ -96,13 +161,131 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     }
   }, [detailTab, loadLeaderboardData]);
 
+  // Subscribe to responses for outgoing challenge invites
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const cleanup = initBattleChannel(
+      user.id,
+      undefined,
+      (response) => {
+        if (activeSentInvite && response.inviteId === activeSentInvite.id) {
+          clearInterval(inviteTimerRef.current);
+          if (response.accepted) {
+            setActiveSentInvite(null);
+            setShowFriendChallengeModal(false);
+            if (onStartCustomMatch) {
+              onStartCustomMatch(
+                response.opponentUsername || activeSentInvite.receiverUsername,
+                activeSentInvite.mode,
+                exercise.id,
+                response.matchRoomId || activeSentInvite.matchRoomId
+              );
+            } else {
+              onJoinQueue(
+                exercise,
+                activeSentInvite.mode === 'faceoff' ? 'faceoff' : 'quick_start'
+              );
+            }
+          } else {
+            setActiveSentInvite(null);
+            Alert.alert('Duel Declined', `@${activeSentInvite.receiverUsername} declined your battle invitation.`);
+          }
+        }
+      }
+    );
+
+    return () => {
+      cleanup();
+      clearInterval(inviteTimerRef.current);
+    };
+  }, [user?.id, activeSentInvite, exercise, onStartCustomMatch, onJoinQueue]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshProfile(), loadExerciseData(), loadLeaderboardData()]);
+      await Promise.all([
+        refreshProfile(),
+        loadExerciseData(),
+        loadLeaderboardData(),
+        loadFriendsList(),
+      ]);
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleChallengeFriend = async (targetFriend: { id: string; username: string }) => {
+    if (!user?.id) return;
+    const currentUsername =
+      profile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'Athlete';
+
+    setChallengingFriendId(targetFriend.id);
+    try {
+      const invite = await sendCustomBattleInvite(
+        {
+          id: user.id,
+          username: currentUsername,
+          avatar_config: profile?.avatar_config,
+        },
+        {
+          id: targetFriend.id,
+          username: targetFriend.username,
+        },
+        exercise.id,
+        exercise.name,
+        selectedBattleMode
+      );
+
+      setActiveSentInvite(invite);
+      setInviteTimeoutSeconds(30);
+
+      clearInterval(inviteTimerRef.current);
+      inviteTimerRef.current = setInterval(() => {
+        setInviteTimeoutSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(inviteTimerRef.current);
+            setActiveSentInvite(null);
+            Alert.alert('Invite Expired', `Battle challenge to @${targetFriend.username} timed out.`);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (e: any) {
+      Alert.alert('Challenge Error', e?.message || 'Could not send battle challenge.');
+    } finally {
+      setChallengingFriendId(null);
+    }
+  };
+
+  const handleChallengeByUsername = async () => {
+    if (!customUsername.trim()) {
+      Alert.alert('Missing Username', 'Please enter a valid athlete username to challenge.');
+      return;
+    }
+    const targetUsername = customUsername.trim();
+
+    const matchedFriend = friends.find(
+      (f) => f.friend.username.toLowerCase() === targetUsername.toLowerCase()
+    );
+
+    if (matchedFriend) {
+      handleChallengeFriend(matchedFriend.friend);
+      setCustomUsername('');
+      return;
+    }
+
+    handleChallengeFriend({
+      id: `custom_${targetUsername}`,
+      username: targetUsername,
+    });
+    setCustomUsername('');
+  };
+
+  const cancelOutgoingInvite = () => {
+    clearInterval(inviteTimerRef.current);
+    setActiveSentInvite(null);
   };
 
   const renderUnderDevelopment = (featureName: string) => (
@@ -206,6 +389,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('workouts')}
         >
+          <Swords
+            size={13}
+            color={detailTab === 'workouts' ? '#FFFFFF' : '#94A3B8'}
+            style={{ marginRight: 4 }}
+          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -221,6 +409,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('leaderboard')}
         >
+          <Trophy
+            size={13}
+            color={detailTab === 'leaderboard' ? '#FFFFFF' : '#94A3B8'}
+            style={{ marginRight: 4 }}
+          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -236,6 +429,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('how_to_play')}
         >
+          <Info
+            size={13}
+            color={detailTab === 'how_to_play' ? '#FFFFFF' : '#94A3B8'}
+            style={{ marginRight: 4 }}
+          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -251,6 +449,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           activeOpacity={0.8}
           onPress={() => onDetailTabChange('shop')}
         >
+          <Gamepad2
+            size={13}
+            color={detailTab === 'shop' ? '#FFFFFF' : '#94A3B8'}
+            style={{ marginRight: 4 }}
+          />
           <Text
             style={[
               styles.detailSubTabText,
@@ -277,22 +480,35 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
       >
         {detailTab === 'workouts' ? (
           <>
-            <Text style={styles.matchmakingSectionHeader}>{exercise.name.toUpperCase()} QUEUES</Text>
+            <Text style={styles.matchmakingSectionHeader}>
+              {exercise.name.toUpperCase()} QUEUES
+            </Text>
 
+            {/* QUEUE CARDS (Faceoff, Quick Start, Custom Friend Battle) */}
             {[
               {
                 id: 'faceoff',
-                title: `${exercise.name} Faceoff (1v1)`,
+                title: `Faceoff (1v1)`,
                 description: `Live video duel with both player cameras visible and real-time ${exercise.name} rep counting`,
                 icon: '⚔️',
-                tag: 'LIVE DUEL 🔥',
+                actionText: 'PLAY',
+                isFriendQueue: false,
               },
               {
                 id: 'quick_start',
-                title: `${exercise.name} Quick Start (1v1)`,
+                title: `Quick Start (1v1)`,
                 description: `Private 1v1 battle (score battle, camera video hidden for privacy)`,
                 icon: '⚡',
-                tag: 'PRIVATE 🔒',
+                actionText: 'PLAY',
+                isFriendQueue: false,
+              },
+              {
+                id: 'custom_friend',
+                title: `Friend Duel (1v1)`,
+                description: `Challenge online friends to a direct 1v1 ${exercise.name} battle with camera or score`,
+                icon: '👥',
+                actionText: 'Play',
+                isFriendQueue: true,
               },
             ].map((queue) => (
               <View key={queue.id} style={styles.queueItemCard}>
@@ -302,20 +518,32 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 <View style={styles.queueInfoBox}>
                   <View style={styles.queueTitleRow}>
                     <Text style={styles.queueTitleText}>{queue.title}</Text>
-                    <View style={styles.queueBadgePill}>
-                      <Text style={styles.queueBadgePillText}>{queue.tag}</Text>
-                    </View>
                   </View>
                   <Text style={styles.queueDescText}>{queue.description}</Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.joinButton}
+                  style={[
+                    styles.joinButton,
+                    queue.isFriendQueue && styles.friendChallengeButton,
+                  ]}
                   activeOpacity={0.85}
-                  onPress={() =>
-                    onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start')
-                  }
+                  onPress={() => {
+                    if (queue.isFriendQueue) {
+                      setShowFriendChallengeModal(true);
+                      loadFriendsList();
+                    } else {
+                      onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start');
+                    }
+                  }}
                 >
-                  <Text style={styles.joinButtonText}>PLAY</Text>
+                  <Text
+                    style={[
+                      styles.joinButtonText,
+                      queue.isFriendQueue && styles.friendChallengeButtonText,
+                    ]}
+                  >
+                    {queue.actionText}
+                  </Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -361,12 +589,16 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             {loadingLeaderboard ? (
               <View style={styles.centerLoadingBox}>
                 <ActivityIndicator size="small" color="#6366F1" />
-                <Text style={styles.loadingLeaderboardText}>Loading {exercise.name} rankings...</Text>
+                <Text style={styles.loadingLeaderboardText}>
+                  Loading {exercise.name} rankings...
+                </Text>
               </View>
             ) : leaderboard.length === 0 ? (
               <View style={styles.emptyLeaderboardBox}>
                 <Text style={{ fontSize: 32 }}>{exercise.icon}</Text>
-                <Text style={styles.emptyLeaderboardTitle}>No {exercise.name} Rankings Yet</Text>
+                <Text style={styles.emptyLeaderboardTitle}>
+                  No {exercise.name} Rankings Yet
+                </Text>
                 <Text style={styles.emptyLeaderboardDesc}>
                   Be the first athlete to duel in {exercise.name} and claim Rank #1!
                 </Text>
@@ -420,7 +652,8 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                           {entry.full_name || entry.username} {isMe ? '(You)' : ''}
                         </Text>
                         <Text style={styles.leaderboardSubText}>
-                          {entryLevel.badge} LVL {entryLevel.level} • {entry.matches_won}W • {entry.reps_completed} Reps
+                          {entryLevel.badge} LVL {entryLevel.level} • {entry.matches_won}W •{' '}
+                          {entry.reps_completed} Reps
                         </Text>
                       </View>
 
@@ -465,12 +698,12 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
               <Text style={styles.tabInfoTitle}>{exercise.name} Level Tiers</Text>
               <View style={styles.tierGrid}>
                 {[
-                  { lvl: 'LVL 1', name: 'Rookie', range: '0 - 99 pts' },
-                  { lvl: 'LVL 2', name: 'Challenger', range: '100 - 249 pts' },
-                  { lvl: 'LVL 3', name: 'Warrior', range: '250 - 499 pts' },
-                  { lvl: 'LVL 4', name: 'Master', range: '500 - 999 pts' },
-                  { lvl: 'LVL 5', name: 'Champion', range: '1,000 - 1,999 pts' },
-                  { lvl: 'LVL 6', name: 'Grandmaster', range: '2,000+ pts' },
+                  { lvl: 'LVL 1', name: 'Rookie ', range: '0 - 99 pts' },
+                  { lvl: 'LVL 2', name: 'Challenger ', range: '100 - 249 pts' },
+                  { lvl: 'LVL 3', name: 'Warrior ', range: '250 - 499 pts' },
+                  { lvl: 'LVL 4', name: 'Master ', range: '500 - 999 pts' },
+                  { lvl: 'LVL 5', name: 'Champion ', range: '1,000 - 1,999 pts' },
+                  { lvl: 'LVL 6', name: 'Grandmaster ', range: '2,000+ pts' },
                 ].map((tier, i) => (
                   <View key={i} style={styles.tierCardItem}>
                     <Text style={styles.tierCardLvl}>{tier.lvl}</Text>
@@ -497,6 +730,204 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           renderUnderDevelopment('Item Shop & Upgrades')
         )}
       </ScrollView>
+
+      {/* FRIEND CHALLENGE SELECTION MODAL */}
+      <Modal
+        visible={showFriendChallengeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!activeSentInvite) setShowFriendChallengeModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.friendModalCard}>
+            <View style={styles.friendModalHeader}>
+              <View style={styles.btnRow}>
+                <Users size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+                <Text style={styles.friendModalTitle}>
+                  CHALLENGE A FRIEND (1v1 {exercise.name.toUpperCase()})
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  cancelOutgoingInvite();
+                  setShowFriendChallengeModal(false);
+                }}
+              >
+                <X size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* If invite is currently sent and waiting */}
+            {activeSentInvite ? (
+              <View style={styles.waitingInsideModalBox}>
+                <View style={styles.inviteWaitingIconBox}>
+                  <Swords size={32} color="#F59E0B" />
+                </View>
+                <Text style={styles.inviteWaitingTitle}>Challenge Sent!</Text>
+                <Text style={styles.inviteWaitingDesc}>
+                  Invited <Text style={styles.highlightFriend}>@{activeSentInvite.receiverUsername}</Text> to a 1v1 {exercise.name}{' '}
+                  {activeSentInvite.mode === 'faceoff' ? 'Faceoff' : 'Score Duel'}.
+                </Text>
+                <View style={styles.inviteTimerBox}>
+                  <ActivityIndicator size="small" color="#6366F1" style={{ marginRight: 8 }} />
+                  <Text style={styles.inviteTimerText}>
+                    Waiting for response ({inviteTimeoutSeconds}s)...
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.cancelInviteBtn}
+                  activeOpacity={0.85}
+                  onPress={cancelOutgoingInvite}
+                >
+                  <Text style={styles.cancelInviteBtnText}>Cancel Invitation</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {/* Battle Mode Toggle */}
+                <View style={styles.modeToggleRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleBtn,
+                      selectedBattleMode === 'faceoff' && styles.modeToggleBtnActive,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => setSelectedBattleMode('faceoff')}
+                  >
+                    <Video
+                      size={14}
+                      color={selectedBattleMode === 'faceoff' ? '#FFFFFF' : '#94A3B8'}
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text
+                      style={[
+                        styles.modeToggleText,
+                        selectedBattleMode === 'faceoff' && styles.modeToggleTextActive,
+                      ]}
+                    >
+                      Faceoff (Camera Duel)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleBtn,
+                      selectedBattleMode === 'quickjoin' && styles.modeToggleBtnActive,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => setSelectedBattleMode('quickjoin')}
+                  >
+                    <Zap
+                      size={14}
+                      color={selectedBattleMode === 'quickjoin' ? '#FFFFFF' : '#94A3B8'}
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text
+                      style={[
+                        styles.modeToggleText,
+                        selectedBattleMode === 'quickjoin' && styles.modeToggleTextActive,
+                      ]}
+                    >
+                      Score Duel (Private)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Direct Challenge by Username Write-in */}
+                <View style={styles.directChallengeRow}>
+                  <View style={styles.directInputWrap}>
+                    <Search size={14} color="#64748B" style={{ marginRight: 6 }} />
+                    <TextInput
+                      style={styles.directInput}
+                      placeholder="Challenge any athlete by @username..."
+                      placeholderTextColor="#64748B"
+                      value={customUsername}
+                      onChangeText={setCustomUsername}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.directSendBtn}
+                    activeOpacity={0.85}
+                    onPress={handleChallengeByUsername}
+                    disabled={!customUsername.trim()}
+                  >
+                    <Send size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Friends List */}
+                <Text style={styles.friendsSubHeader}>
+                  YOUR FRIENDS ({friends.length})
+                </Text>
+
+                <ScrollView style={styles.friendsModalScroll} showsVerticalScrollIndicator={false}>
+                  {loadingFriends ? (
+                    <View style={styles.friendsLoadingBox}>
+                      <ActivityIndicator size="small" color="#6366F1" />
+                      <Text style={styles.friendsLoadingText}>Loading friends list...</Text>
+                    </View>
+                  ) : friends.length === 0 ? (
+                    <View style={styles.emptyFriendsBox}>
+                      <Users size={28} color="#64748B" style={{ marginBottom: 6 }} />
+                      <Text style={styles.emptyFriendsTitle}>No Friends Added Yet</Text>
+                      <Text style={styles.emptyFriendsSubtitle}>
+                        Add friends in your Profile tab to send them instant 1v1 battle invites!
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.friendsRosterBox}>
+                      {friends.map((item) => {
+                        const isChallengingThis = challengingFriendId === item.friend.id;
+                        return (
+                          <View key={item.friendship_id} style={styles.friendRosterRow}>
+                            <View style={styles.friendRosterAvatarWrap}>
+                              <Avatar
+                                username={item.friend.username}
+                                size={40}
+                                config={item.friend.avatar_config}
+                              />
+                              <View style={styles.onlineBadgeDot} />
+                            </View>
+
+                            <View style={styles.friendRosterInfo}>
+                              <Text style={styles.friendRosterName} numberOfLines={1}>
+                                {item.friend.full_name || item.friend.username}
+                              </Text>
+                              <Text style={styles.friendRosterUsername}>
+                                @{item.friend.username}
+                              </Text>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.challengeActionBtn}
+                              activeOpacity={0.85}
+                              onPress={() => handleChallengeFriend(item.friend)}
+                              disabled={isChallengingThis}
+                            >
+                              {isChallengingThis ? (
+                                <ActivityIndicator size="small" color="#000000" />
+                              ) : (
+                                <View style={styles.btnRow}>
+                                  <Swords size={12} color="#000000" style={{ marginRight: 4 }} />
+                                  <Text style={styles.challengeActionBtnText}>CHALLENGE</Text>
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -507,19 +938,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    display: 'flex',
     backgroundColor: '#1E293B',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backButtonText: { color: '#FFF' },
-  detailFavButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1E293B',
+  backButtonText: { color: '#FFF', fontSize: 20, fontWeight: '700' },
+  btnRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   detailBannerCard: {
     backgroundColor: '#161F30',
@@ -616,10 +1042,12 @@ const styles = StyleSheet.create({
   },
   detailSubTabItem: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 12,
     backgroundColor: '#161F30',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
   },
@@ -677,6 +1105,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   joinButtonText: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  friendChallengeButton: {
+  },
+  friendChallengeButtonText: {
+    color: '#FFF',
+  },
   leaderboardContainer: { marginTop: 14 },
   myRankCard: {
     flexDirection: 'row',
@@ -801,6 +1234,258 @@ const styles = StyleSheet.create({
   tierCardName: { color: '#F8FAFC', fontSize: 12, fontWeight: '700', marginTop: 2 },
   tierCardRange: { color: '#94A3B8', fontSize: 10, marginTop: 2 },
   tabInfoBody: { color: '#CBD5E1', fontSize: 13, lineHeight: 20 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  friendModalCard: {
+    backgroundColor: '#161F30',
+    borderRadius: 24,
+    padding: 20,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  friendModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  friendModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  waitingInsideModalBox: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  inviteWaitingIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  inviteWaitingTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  inviteWaitingDesc: {
+    color: '#94A3B8',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  highlightFriend: {
+    color: '#60A5FA',
+    fontWeight: '800',
+  },
+  inviteTimerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  inviteTimerText: {
+    color: '#A5B4FC',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cancelInviteBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: 18,
+    width: '100%',
+    alignItems: 'center',
+  },
+  cancelInviteBtnText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  modeToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 12,
+    gap: 4,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: '#2563EB',
+  },
+  modeToggleText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modeToggleTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  directChallengeRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 8,
+  },
+  directInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  directInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    paddingVertical: 8,
+  },
+  directSendBtn: {
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendsSubHeader: {
+    color: '#818CF8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  friendsModalScroll: {
+    maxHeight: 220,
+  },
+  friendsLoadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 8,
+  },
+  friendsLoadingText: {
+    color: '#94A3B8',
+    fontSize: 11,
+  },
+  emptyFriendsBox: {
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  emptyFriendsTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  emptyFriendsSubtitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  friendsRosterBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  friendRosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  friendRosterAvatarWrap: {
+    position: 'relative',
+  },
+  onlineBadgeDot: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#0F172A',
+  },
+  friendRosterInfo: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  friendRosterName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  friendRosterUsername: {
+    color: '#60A5FA',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  challengeActionBtn: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  challengeActionBtnText: {
+    color: '#000',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   devContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
   devCard: {
     backgroundColor: '#161F30',
