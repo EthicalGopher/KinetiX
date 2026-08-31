@@ -25,28 +25,11 @@ const memoryStorage = {
   },
 };
 
-const supabaseFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-  if (SUPABASE_ANON_KEY.startsWith('sb_publishable_')) {
-    const headers = new Headers(init.headers);
-    if (!headers.has('apikey')) {
-      headers.set('apikey', SUPABASE_ANON_KEY);
-    }
-    if (!headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
-    }
-    init.headers = headers;
-  }
-  return fetch(input, init);
-};
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: memoryStorage as any,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-  },
-  global: {
-    fetch: supabaseFetch as any,
   },
 });

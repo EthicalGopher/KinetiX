@@ -118,7 +118,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
           password,
         });
         if (error) {
-          setErrorMsg(error.message);
+          console.warn('[AuthModal] signIn error:', error);
+          setErrorMsg(error.message || 'Invalid credentials or connection issue.');
         } else {
           setUser(data.user);
           setStep('profile');
@@ -126,7 +127,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         }
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Unexpected error during authentication');
+      console.warn('[AuthModal] exception:', err);
+      setErrorMsg(err?.message || 'Network request failed. Please check your internet connection.');
     } finally {
       setLoading(false);
     }

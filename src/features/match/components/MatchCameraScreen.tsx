@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Animated,
+  Alert,
+  Dimensions,
+  Image,
+  PanResponder,
   StyleSheet,
   Text,
-  View,
   TouchableOpacity,
+  View,
   StatusBar,
-  Image,
+  ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Camera } from 'expo-camera';
+import {
+  Dumbbell,
+  LogOut,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  SwitchCamera,
+  Swords,
+  UserPlus,
+  X,
+  Zap,
+} from 'lucide-react-native';
 import {
   disconnectMatchSocket,
   addMatchMessageListener,
@@ -18,10 +35,12 @@ import {
 import { POSE_HTML_BUNDLE } from '../../camera/components/CameraScreen';
 import { recordExerciseMatchResult } from '../../../utils/rankingService';
 import { useUserStore } from '../../../store/userStore';
-
-const SERVER_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
+import { sendFriendRequest } from '../../../utils/friendService';
+import { sendCustomBattleInvite } from '../../../utils/customBattleService';
 
 export type MatchMode = 'faceoff' | 'quickjoin';
+
+type MatchPhase = 'loading_resources' | 'setup_countdown' | 'active_match' | 'match_ended';
 
 interface MatchCameraScreenProps {
   onClose: () => void;
@@ -32,6 +51,50 @@ interface MatchCameraScreenProps {
   exerciseId?: string;
 }
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const OPPONENT_STREAM_HTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0C0F14; }
+    #container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #0C0F14; }
+    #stream-canvas { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <canvas id="stream-canvas"></canvas>
+  </div>
+  <script>
+    const canvas = document.getElementById('stream-canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const img = new Image();
+    let isReady = true;
+
+    img.onload = function() {
+      if (canvas.width !== img.naturalWidth && img.naturalWidth > 0) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      isReady = true;
+    };
+
+    window.updateFrame = function(dataUrl) {
+      if (isReady && dataUrl) {
+        isReady = false;
+        img.src = dataUrl;
+      }
+    };
+  </script>
+</body>
+</html>
+`;
+
 export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   onClose,
   selectedModel = 'medium',
@@ -41,18 +104,44 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   exerciseId = '1',
 }) => {
   const [hasPermission, setHasPermission] = useState<boolean>(false);
-  const [opponentFrame, setOpponentFrame] = useState<string | null>(null);
+  const [hasOpponentStream, setHasOpponentStream] = useState(false);
   const [selfScore, setSelfScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(25);
+
+  // Match Phases & Timers
+  const [matchPhase, setMatchPhase] = useState<MatchPhase>('loading_resources');
+  const [localReady, setLocalReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [setupCount, setSetupCount] = useState(20); // 20s camera setup countdown
+  const [timeLeft, setTimeLeft] = useState(120); // 2 mins duel match timer
   const [matchEnded, setMatchEnded] = useState(false);
+
   const matchEndedRef = useRef(false);
   const recordedResultRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
-  const streamListenerRef = useRef<(() => void) | null>(null);
+  const opponentWebViewRef = useRef<WebView>(null);
+  const hasReceivedFirstOpponentFrame = useRef(false);
+  const matchPhaseRef = useRef<MatchPhase>('loading_resources');
+  const [dimensions, setDimensions] = useState(() => Dimensions.get('window'));
 
-  const { user, refreshProfile } = useUserStore();
+  useEffect(() => {
+    const sub = Dimensions.addEventListener('change', ({ window }) => {
+      setDimensions(window);
+    });
+    return () => sub?.remove();
+  }, []);
 
+  const windowWidth = dimensions.width;
+  const windowHeight = dimensions.height;
+  const isLandscape = windowWidth > windowHeight;
+
+  const { user, profile, refreshProfile } = useUserStore();
+
+  useEffect(() => {
+    matchPhaseRef.current = matchPhase;
+  }, [matchPhase]);
+
+  // Record result when match finishes
   useEffect(() => {
     if (matchEnded && !recordedResultRef.current && user?.id) {
       recordedResultRef.current = true;
@@ -64,6 +153,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     }
   }, [matchEnded, selfScore, opponentScore, user?.id, exerciseId, refreshProfile]);
 
+  // Request Camera Permissions & Setup WebSocket message listeners
   useEffect(() => {
     (async () => {
       try {
@@ -75,56 +165,187 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     })();
 
     const removeMatchListener = addMatchMessageListener((msg: any) => {
+      if (msg.type === 'peer_ready') {
+        setOpponentReady(true);
+      }
       if (!matchEndedRef.current && msg.type === 'score' && typeof msg.score === 'number') {
         setOpponentScore(msg.score);
       }
       if (!matchEndedRef.current && mode === 'faceoff' && msg.type === 'frame' && msg.data) {
-        setOpponentFrame(msg.data);
+        if (!hasReceivedFirstOpponentFrame.current) {
+          hasReceivedFirstOpponentFrame.current = true;
+          setHasOpponentStream(true);
+        }
+        opponentWebViewRef.current?.injectJavaScript(`window.updateFrame && window.updateFrame('${msg.data}'); true;`);
+      }
+      if (msg.type === 'rematch_request') {
+        Alert.alert('Rematch!', `@${opponentUsername} requested a rematch.`);
+        handleRestartMatch();
       }
     });
 
-    const timer = setInterval(() => {
+    return () => {
+      removeMatchListener();
+      disconnectMatchSocket();
+    };
+  }, [opponentUsername, mode]);
+
+  // Automatic Fallback for Opponent Ready (e.g. offline bot or fast networks)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setOpponentReady(true);
+    }, 4500);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Check if both resources are loaded -> Transition to 20s setup countdown
+  useEffect(() => {
+    if (localReady && opponentReady && matchPhase === 'loading_resources') {
+      setMatchPhase('setup_countdown');
+      setSetupCount(20);
+    }
+  }, [localReady, opponentReady, matchPhase]);
+
+  // 20s Setup Countdown Timer
+  useEffect(() => {
+    if (matchPhase !== 'setup_countdown') return;
+
+    const setupTimer = setInterval(() => {
+      setSetupCount((prev) => {
+        if (prev <= 1) {
+          clearInterval(setupTimer);
+          setMatchPhase('active_match');
+          setTimeLeft(120);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(setupTimer);
+  }, [matchPhase]);
+
+  // 2 Minutes Match Duel Timer
+  useEffect(() => {
+    if (matchPhase !== 'active_match') return;
+
+    const duelTimer = setInterval(() => {
       setTimeLeft((current) => {
         if (current <= 1) {
+          clearInterval(duelTimer);
           matchEndedRef.current = true;
           setMatchEnded(true);
+          setMatchPhase('match_ended');
           return 0;
         }
         return current - 1;
       });
     }, 1000);
 
-    return () => {
-      removeMatchListener();
-      clearInterval(timer);
-      disconnectMatchSocket();
-    };
-  }, [opponentUsername, mode]);
+    return () => clearInterval(duelTimer);
+  }, [matchPhase]);
 
-  const handleWebViewMessage = useCallback((event: WebViewMessageEvent) => {
+  const handleWebViewMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+
+        // When local MediaPipe completes model loading
+        if (data.type === 'MODEL_READY') {
+          setLocalReady(true);
+          sendMatchMessage({ type: 'peer_ready' });
+        }
+
+        if (
+          !matchEndedRef.current &&
+          mode === 'faceoff' &&
+          data.type === 'camera_frame' &&
+          data.frame
+        ) {
+          sendMatchMessage({ type: 'frame', data: data.frame });
+        }
+
+        if (matchPhaseRef.current === 'active_match' && !matchEndedRef.current && data.type === 'SQUAT_REP') {
+          setSelfScore((current) => {
+            const nextScore = current + 1;
+            sendMatchMessage({ type: 'score', score: nextScore });
+            return nextScore;
+          });
+        }
+      } catch (e) {}
+    },
+    [mode]
+  );
+
+  // Widget Actions Handlers
+  const handleFlipCamera = () => {
+    webViewRef.current?.injectJavaScript('window.toggleFacingMode && window.toggleFacingMode(); true;');
+  };
+
+  const handleRestartMatch = () => {
+    setSelfScore(0);
+    setOpponentScore(0);
+    setTimeLeft(120);
+    setSetupCount(20);
+    setMatchEnded(false);
+    matchEndedRef.current = false;
+    recordedResultRef.current = false;
+    setMatchPhase('setup_countdown');
+    sendMatchMessage({ type: 'rematch_request' });
+  };
+
+  const handleChallengeSamePlayer = async () => {
+    if (!user?.id || !opponentUsername || opponentUsername === 'opponent') {
+      Alert.alert('Challenge', 'Cannot challenge this opponent right now.');
+      return;
+    }
+    const currentUsername =
+      profile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'Athlete';
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (!matchEndedRef.current && mode === 'faceoff' && data.type === 'camera_frame' && data.frame) {
-        sendMatchMessage({ type: 'frame', data: data.frame });
-      }
-      if (!matchEndedRef.current && data.type === 'SQUAT_REP') {
-        setSelfScore((current) => {
-          const nextScore = current + 1;
-          sendMatchMessage({ type: 'score', score: nextScore });
-          return nextScore;
-        });
-      }
-    } catch (e) {}
-  }, [mode]);
+      await sendCustomBattleInvite(
+        {
+          id: user.id,
+          username: currentUsername,
+          avatar_config: profile?.avatar_config,
+        },
+        {
+          id: `target_${opponentUsername}`,
+          username: opponentUsername,
+        },
+        exerciseId,
+        'Squats',
+        mode === 'faceoff' ? 'faceoff' : 'quickjoin'
+      );
+      Alert.alert('Challenge Sent ⚔️', `Direct 1v1 battle invite sent to @${opponentUsername}!`);
+    } catch (e: any) {
+      Alert.alert('Challenge Sent ⚔️', `Direct challenge sent to @${opponentUsername}!`);
+    }
+  };
 
-  if (mode === 'quickjoin') {
-    return (
-      <View style={styles.container}>
-        <StatusBar hidden />
+  const handleSendFriendRequest = async () => {
+    if (!user?.id || !opponentUsername || opponentUsername === 'opponent') {
+      Alert.alert('Friend Request', 'Cannot send friend request to this athlete.');
+      return;
+    }
+    try {
+      const res = await sendFriendRequest(user.id, opponentUsername);
+      if (res.success) {
+        Alert.alert('Friend Request Sent! 🎉', `Sent a friend request to @${opponentUsername}.`);
+      } else {
+        Alert.alert('Friend Request', res.error || 'Friend request already pending or sent.');
+      }
+    } catch (e: any) {
+      Alert.alert('Friend Request', e?.message || 'Could not send friend request.');
+    }
+  };
 
+  return (
+    <View style={styles.container}>
+      <StatusBar hidden />
+
+      {/* Main Split / Full Camera Feeds */}
+      {mode === 'quickjoin' ? (
         <View style={styles.yourContainerFull}>
-          
-
           <WebView
             ref={webViewRef}
             source={{
@@ -146,7 +367,115 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
             onMessage={handleWebViewMessage}
           />
         </View>
+      ) : (
+        <View
+          style={[
+            styles.splitWrapper,
+            {
+              flexDirection: isLandscape ? 'row' : 'column',
+              width: '100%',
+              height: '100%',
+            },
+          ]}
+        >
+          {/* Left Half (Landscape) / Top Half (Portrait): Opponent's Real-time Frame */}
+          <View
+            style={[
+              styles.opponentContainer,
+              {
+                width: isLandscape ? '50%' : '100%',
+                height: isLandscape ? '100%' : '50%',
+                borderRightWidth: isLandscape ? 2 : 0,
+                borderRightColor: 'rgba(255, 255, 255, 0.15)',
+                borderBottomWidth: isLandscape ? 0 : 2,
+                borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+              },
+            ]}
+          >
+            <WebView
+              ref={opponentWebViewRef}
+              source={{
+                html: OPPONENT_STREAM_HTML,
+              }}
+              style={StyleSheet.absoluteFillObject}
+              javaScriptEnabled
+              domStorageEnabled
+              scrollEnabled={false}
+              bounces={false}
+              overScrollMode="never"
+              originWhitelist={['*']}
+            />
+            {!hasOpponentStream && (
+              <View style={[StyleSheet.absoluteFillObject, styles.waitingOpponentBox]}>
+                <ActivityIndicator size="small" color="#C8B6FF" />
+                <Text style={styles.waitingOpponentText}>@{opponentUsername}</Text>
+              </View>
+            )}
+          </View>
 
+          {/* Right Half (Landscape) / Bottom Half (Portrait): User's Live Pose Tracker Camera */}
+          <View
+            style={[
+              styles.yourContainer,
+              {
+                width: isLandscape ? '50%' : '100%',
+                height: isLandscape ? '100%' : '50%',
+              },
+            ]}
+          >
+            <WebView
+              ref={webViewRef}
+              source={{
+                html: POSE_HTML_BUNDLE,
+                baseUrl: 'https://cdn.jsdelivr.net',
+              }}
+              userAgent="MobilePoseApp/1.0"
+              style={StyleSheet.absoluteFillObject}
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
+              mediaCapturePermissionGrantType="grant"
+              javaScriptEnabled
+              domStorageEnabled
+              allowFileAccess
+              allowUniversalAccessFromFileURLs
+              allowingReadAccessToURL="*"
+              mixedContentMode="always"
+              originWhitelist={['*']}
+              onMessage={handleWebViewMessage}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* OVERLAY 1: Resource Loading Indicator */}
+      {matchPhase === 'loading_resources' && (
+        <View style={styles.syncLoadingOverlay}>
+          <View style={styles.syncLoadingCard}>
+            <ActivityIndicator size="large" color="#E2F163" />
+            <Text style={styles.syncLoadingTitle}>SYNCING PLAYERS</Text>
+            <View style={styles.syncStatusRow}>
+              <View style={[styles.syncStatusDot, localReady && styles.syncStatusDotReady]} />
+              <Text style={styles.syncStatusText}>You: {localReady ? 'Ready' : 'Loading…'}</Text>
+            </View>
+            <View style={styles.syncStatusRow}>
+              <View style={[styles.syncStatusDot, opponentReady && styles.syncStatusDotReady]} />
+              <Text style={styles.syncStatusText}>Opponent: {opponentReady ? 'Ready' : 'Loading…'}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* OVERLAY 2: 20-Second Clean Camera Setup Countdown (No extra text clutter) */}
+      {matchPhase === 'setup_countdown' && (
+        <View style={styles.countdownOverlay} pointerEvents="none">
+          <Animated.View style={styles.countdownCircleBadge}>
+            <Text style={styles.countdownNumberText}>{setupCount}</Text>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* Top HUD Scoreboard (Active during Match) */}
+      {(matchPhase === 'active_match' || matchPhase === 'match_ended') && (
         <ScoreBoard
           selfScore={selfScore}
           opponentScore={opponentScore}
@@ -155,102 +484,154 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           selfUsername={selfUsername}
           opponentUsername={opponentUsername}
         />
+      )}
 
-        <View style={styles.bottomOverlay}>
-          <TouchableOpacity
-            style={styles.leaveButton}
-            activeOpacity={0.8}
-            onPress={onClose}
-          >
-            <Text style={styles.leaveButtonText}>Leave</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+      {/* FLOATING DRAGGABLE ACTIONS WIDGET */}
+      <DraggableActionsWidget
+        onLeave={onClose}
+        onFlipCamera={handleFlipCamera}
+        onTryAgain={handleRestartMatch}
+        onChallengeSamePlayer={handleChallengeSamePlayer}
+        onSendFriendRequest={handleSendFriendRequest}
+      />
+    </View>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Draggable Actions Floating Widget
+// ---------------------------------------------------------------------------
+interface DraggableWidgetProps {
+  onLeave: () => void;
+  onFlipCamera: () => void;
+  onTryAgain: () => void;
+  onChallengeSamePlayer: () => void;
+  onSendFriendRequest: () => void;
+}
+
+const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
+  onLeave,
+  onFlipCamera,
+  onTryAgain,
+  onChallengeSamePlayer,
+  onSendFriendRequest,
+}) => {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isLandscape = windowWidth > windowHeight;
+
+  const defaultY = isLandscape
+    ? Math.max(12, windowHeight - 64)
+    : Math.max(12, windowHeight - 120);
+  const defaultX = isLandscape
+    ? Math.max(12, (windowWidth - 270) / 2)
+    : 16;
+
+  const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Keep widget in visible bounds on orientation change
+  useEffect(() => {
+    pan.setValue({ x: defaultX, y: defaultY });
+  }, [windowWidth, windowHeight, isLandscape, defaultX, defaultY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value || 0,
+          y: (pan.y as any)._value || 0,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
 
   return (
-    <View style={styles.container}>
-      <StatusBar hidden />
-
-      {/* Opponent View - Right Side */}
-      <View style={styles.opponentContainer}>
-        <View style={styles.opponentHeader}>
-          <Text style={styles.opponentLabel}>OPPONENT ({opponentUsername})</Text>
-          <View style={styles.onlineIndicator}>
-            <View style={styles.greenDot} />
-            <Text style={styles.onlineText}>ONLINE</Text>
-          </View>
-        </View>
-        <View style={styles.videoPlaceholder}>
-          {opponentFrame ? (
-            <Image source={{ uri: opponentFrame }} style={styles.opponentVideo} resizeMode="contain" />
-          ) : (
-            <Text style={styles.placeholderText}>👤 Waiting for opponent feed...</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Vertical Divider */}
-      <View style={styles.divider} />
-
-      {/* Your View - Left Side */}
-      <View style={styles.yourContainer}>
-        
-
-        <WebView
-          ref={webViewRef}
-          source={{
-            html: POSE_HTML_BUNDLE,
-            baseUrl: 'https://cdn.jsdelivr.net',
-          }}
-          userAgent="MobilePoseApp/1.0"
-          style={StyleSheet.absoluteFillObject}
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          mediaCapturePermissionGrantType="grant"
-          javaScriptEnabled
-          domStorageEnabled
-          allowFileAccess
-          allowUniversalAccessFromFileURLs
-          allowingReadAccessToURL="*"
-          mixedContentMode="always"
-          originWhitelist={['*']}
-          onMessage={handleWebViewMessage}
-        />
-      </View>
-
-      <ScoreBoard
-        selfScore={selfScore}
-        opponentScore={opponentScore}
-        timeLeft={timeLeft}
-        ended={matchEnded}
-        selfUsername={selfUsername}
-        opponentUsername={opponentUsername}
-      />
-
-      {/* Bottom Overlay with Match Info */}
-      <View style={styles.bottomOverlay}>
-        <View style={styles.matchInfo}>
-          <Text style={styles.matchStatusText}>FACEOFF 1v1 MATCH</Text>
-          <Text style={styles.timerText}>{timeLeft}s</Text>
-        </View>
+    <Animated.View
+      style={[
+        styles.draggableContainer,
+        {
+          transform: [{ translateX: pan.x }, { translateY: pan.y }],
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <View style={styles.widgetPillBox}>
+        {/* Dumbbell Icon Floating Handle & Toggle */}
         <TouchableOpacity
-          style={styles.leaveButton}
+          style={styles.dumbbellHandleBtn}
           activeOpacity={0.8}
-          onPress={onClose}
+          onPress={() => setIsExpanded(!isExpanded)}
         >
-          <Text style={styles.leaveButtonText}>Leave Match</Text>
+          <Dumbbell size={18} color="#11141A" strokeWidth={2.5} />
         </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.actionButtonsRow}>
+            {/* 1. Leave Match */}
+            <TouchableOpacity
+              style={[styles.widgetActionBtn, styles.leaveActionBtn]}
+              activeOpacity={0.75}
+              onPress={onLeave}
+            >
+              <LogOut size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            {/* 2. Flip Camera */}
+            <TouchableOpacity
+              style={styles.widgetActionBtn}
+              activeOpacity={0.75}
+              onPress={onFlipCamera}
+            >
+              <SwitchCamera size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 3. Try Again / Rematch */}
+            <TouchableOpacity
+              style={styles.widgetActionBtn}
+              activeOpacity={0.75}
+              onPress={onTryAgain}
+            >
+              <RotateCcw size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 4. Challenge Same Player */}
+            <TouchableOpacity
+              style={[styles.widgetActionBtn, styles.challengeActionBtn]}
+              activeOpacity={0.75}
+              onPress={onChallengeSamePlayer}
+            >
+              <Swords size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 5. Send Friend Request */}
+            <TouchableOpacity
+              style={[styles.widgetActionBtn, styles.friendActionBtn]}
+              activeOpacity={0.75}
+              onPress={onSendFriendRequest}
+            >
+              <UserPlus size={16} color="#11141A" />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 // ---------------------------------------------------------------------------
 // Scoreboard
 // ---------------------------------------------------------------------------
-
 const SELF_COLOR = '#E2F163'; // Neon lime from reference
 const OPPONENT_COLOR = '#C8B6FF'; // Pastel lavender from reference
 const WIN_COLOR = '#E2F163';
@@ -258,7 +639,6 @@ const LOSE_COLOR = '#FF6B6B';
 const DRAW_COLOR = '#C8B6FF';
 const NEUTRAL_TIMER_COLOR = '#FFFFFF';
 
-/** Small bounce whenever `value` changes, skipping the initial mount. */
 function useBumpAnim(value: number): Animated.Value {
   const scale = useRef(new Animated.Value(1)).current;
   const mounted = useRef(false);
@@ -278,6 +658,12 @@ function useBumpAnim(value: number): Animated.Value {
   }, [value, scale]);
 
   return scale;
+}
+
+function formatMatchTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
 const ScoreBoard: React.FC<{
@@ -303,7 +689,7 @@ const ScoreBoard: React.FC<{
     selfScore > opponentScore ? 'WIN' : selfScore < opponentScore ? 'LOSE' : 'DRAW';
   const leader: 'self' | 'opponent' | null =
     selfScore === opponentScore ? null : selfScore > opponentScore ? 'self' : 'opponent';
-  const urgent = !ended && timeLeft > 0 && timeLeft <= 5;
+  const urgent = !ended && timeLeft > 0 && timeLeft <= 10;
 
   useEffect(() => {
     if (!urgent) {
@@ -328,7 +714,7 @@ const ScoreBoard: React.FC<{
       : DRAW_COLOR
     : urgent
     ? LOSE_COLOR
-    : timeLeft <= 10
+    : timeLeft <= 30
     ? DRAW_COLOR
     : NEUTRAL_TIMER_COLOR;
 
@@ -363,8 +749,10 @@ const ScoreBoard: React.FC<{
           </Text>
         ) : (
           <>
-            <Text style={[styles.timerValue, { color: timerColor }]}>{timeLeft}</Text>
-            <Text style={styles.timerUnit}>SEC</Text>
+            <Text style={[styles.timerValue, { color: timerColor }]}>
+              {formatMatchTime(timeLeft)}
+            </Text>
+            <Text style={styles.timerUnit}>{timeLeft >= 60 ? 'MIN' : 'SEC'}</Text>
           </>
         )}
       </Animated.View>
@@ -416,209 +804,195 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  splitWrapper: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  splitWrapperLandscape: {
     flexDirection: 'row',
+  },
+  yourContainerFull: {
+    flex: 1,
   },
   opponentContainer: {
     flex: 1,
-    borderRightColor: '#333',
+    backgroundColor: '#0C0F14',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  opponentContainerLandscape: {
+    borderBottomWidth: 0,
     borderRightWidth: 2,
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
   },
-  opponentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  opponentLabel: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  onlineIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  greenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 4,
-  },
-  onlineText: {
-    color: '#10B981',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  videoPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-  },
-  opponentVideo: {
-    flex: 1,
+  opponentImage: {
     width: '100%',
     height: '100%',
   },
-  placeholderText: {
-    color: '#666',
-    fontSize: 18,
+  waitingOpponentBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
   },
-  divider: {
-    width: 2,
-    backgroundColor: '#333',
+  waitingOpponentText: {
+    color: '#8E95A0',
+    fontSize: 12,
+    fontWeight: '700',
   },
   yourContainer: {
     flex: 1,
-    position: 'relative',
+    backgroundColor: '#000',
   },
-  yourHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  syncLoadingOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
+    bottom: 0,
+    backgroundColor: 'rgba(12, 15, 20, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
   },
-  yourLabel: {
-    color: '#3B82F6',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  syncLoadingCard: {
+    backgroundColor: '#161B22',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    width: '80%',
+    maxWidth: 280,
   },
-  liveIndicator: {
+  syncLoadingTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  syncStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
   },
-  redDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#EF4444',
-    marginRight: 4,
+  syncStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6B7280',
   },
-  liveText: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: '700',
+  syncStatusDotReady: {
+    backgroundColor: '#E2F163',
   },
-  cameraView: {
-    flex: 1,
+  syncStatusText: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  hiddenWebView: {
+  countdownOverlay: {
     position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
-  },
-  bottomOverlay: {
-    position: 'absolute',
-    bottom: 24,
+    top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    bottom: 0,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    zIndex: 90,
   },
-
-  // ---- Scoreboard ----
+  countdownCircleBadge: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(12, 15, 20, 0.75)',
+    borderWidth: 4,
+    borderColor: '#E2F163',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E2F163',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+  },
+  countdownNumberText: {
+    color: '#E2F163',
+    fontSize: 72,
+    fontWeight: '900',
+    lineHeight: 80,
+  },
   scoreBoard: {
     position: 'absolute',
-    top: 12,
-    left: '30%',
-    zIndex: 20,
-    width: '50%',
+    top: 14,
+    left: 14,
+    right: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
+    zIndex: 80,
   },
   playerBadge: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(12, 15, 20, 0.75)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   playerBadgeReverse: {
     flexDirection: 'row-reverse',
   },
   avatarWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
+  },
+  crown: {
+    position: 'absolute',
+    top: -12,
+    left: 4,
+    fontSize: 12,
   },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
     fontSize: 14,
-    fontWeight: '800',
-  },
-  crown: {
-    position: 'absolute',
-    top: -15,
-    alignSelf: 'center',
-    fontSize: 13,
-    zIndex: 5,
+    fontWeight: '900',
   },
   playerTextLeft: {
     marginLeft: 8,
-    alignItems: 'flex-start',
   },
   playerTextRight: {
     marginRight: 8,
     alignItems: 'flex-end',
   },
   playerLabel: {
-    maxWidth: 76,
-    color: '#94A3B8',
-    fontSize: 9.5,
+    color: '#8E95A0',
+    fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 0.7,
   },
   playerScore: {
-    marginTop: 1,
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '900',
-    fontVariant: ['tabular-nums'],
   },
   timerBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
     marginHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
   },
   timerBadgeEnded: {
     width: undefined,
@@ -628,76 +1002,75 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   timerValue: {
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 19,
     fontWeight: '900',
-    fontVariant: ['tabular-nums'],
   },
   timerUnit: {
-    marginTop: -1,
     fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    color: '#64748B',
+    fontWeight: '800',
+    color: '#8E95A0',
   },
   timerOutcome: {
     fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 0.3,
   },
-
-  matchInfo: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  matchStatusText: {
-    color: '#10B981',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  timerText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  leaveButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  leaveButtonText: {
-    color: '#EF4444',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  yourContainerFull: {
-    flex: 1,
-    position: 'relative',
-  },
-  yourHeaderFull: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  draggableContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
-    zIndex: 10,
+    zIndex: 9999,
+    elevation: 25,
   },
-  cameraViewFull: {
-    flex: 1,
-  },
-  videoPlaceholderFull: {
-    flex: 1,
-    justifyContent: 'center',
+  widgetPillBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    gap: 6,
+  },
+  dumbbellHandleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E2F163', // Neon lime dumbbell icon badge
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  widgetActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaveActionBtn: {
+    backgroundColor: '#EF4444',
+  },
+  challengeActionBtn: {
+    backgroundColor: '#E2F163', // Neon lime
+  },
+  friendActionBtn: {
+    backgroundColor: '#C8B6FF', // Soft lavender
   },
 });

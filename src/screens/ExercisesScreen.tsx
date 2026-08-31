@@ -173,7 +173,7 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
                   </Text>
                   <View style={styles.durationBadge}>
                     <Text style={styles.durationBadgeNumber}>{duration}</Text>
-                    <Text style={styles.durationBadgeUnit}>Secs</Text>
+                    <Text style={styles.durationBadgeUnit}>Mins</Text>
                   </View>
                 </View>
 
@@ -201,7 +201,6 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
                 {/* Bottom Quick Play Strip */}
                 <View style={styles.cardBottomRow}>
                   <View style={styles.aiTagPill}>
-                    <Sparkles size={11} color="#11141A" style={{ marginRight: 4 }} />
                     <Text style={styles.aiTagText}>
                       {exercise.description || 'Live Pose & Rep Tracking'}
                     </Text>

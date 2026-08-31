@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { AvatarConfig } from '../components/Avatar';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type BattleMode = 'faceoff' | 'quickjoin';
 
@@ -27,58 +28,69 @@ type ResponseCallback = (data: {
   exerciseId?: string;
 }) => void;
 
-let activeBattleChannel: any = null;
-let currentUserId: string | null = null;
+let battleHubChannel: RealtimeChannel | null = null;
+let currentSubscribedUserId: string | null = null;
 const inviteListeners: InviteCallback[] = [];
 const responseListeners: ResponseCallback[] = [];
 
 /**
- * Initializes and subscribes to real-time custom battle events for a user.
+ * Initializes and subscribes to the shared Realtime battle hub for the user.
  */
 export function initBattleChannel(
   userId: string,
   onInvite?: InviteCallback,
   onResponse?: ResponseCallback
 ) {
-  if (onInvite) inviteListeners.push(onInvite);
-  if (onResponse) responseListeners.push(onResponse);
-
-  if (activeBattleChannel && currentUserId === userId) {
-    return () => {
-      if (onInvite) {
-        const idx = inviteListeners.indexOf(onInvite);
-        if (idx !== -1) inviteListeners.splice(idx, 1);
-      }
-      if (onResponse) {
-        const idx = responseListeners.indexOf(onResponse);
-        if (idx !== -1) responseListeners.splice(idx, 1);
-      }
-    };
+  if (onInvite && !inviteListeners.includes(onInvite)) {
+    inviteListeners.push(onInvite);
+  }
+  if (onResponse && !responseListeners.includes(onResponse)) {
+    responseListeners.push(onResponse);
   }
 
-  if (activeBattleChannel) {
-    supabase.removeChannel(activeBattleChannel);
+  currentSubscribedUserId = userId;
+
+  if (!battleHubChannel) {
+    battleHubChannel = supabase.channel('custom_battles_hub', {
+      config: {
+        broadcast: { ack: true, self: false },
+      },
+    });
+
+    battleHubChannel
+      .on('broadcast', { event: 'custom_battle_invite' }, ({ payload }: { payload: BattleInvite }) => {
+        if (
+          payload &&
+          currentSubscribedUserId &&
+          (payload.receiverId === currentSubscribedUserId ||
+            payload.receiverUsername?.toLowerCase() === currentSubscribedUserId.toLowerCase())
+        ) {
+          inviteListeners.forEach((cb) => {
+            try {
+              cb(payload);
+            } catch (e) {
+              console.warn('[BattleHub] error in invite callback:', e);
+            }
+          });
+        }
+      })
+      .on('broadcast', { event: 'custom_battle_response' }, ({ payload }: any) => {
+        if (payload) {
+          responseListeners.forEach((cb) => {
+            try {
+              cb(payload);
+            } catch (e) {
+              console.warn('[BattleHub] error in response callback:', e);
+            }
+          });
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[BattleHub] Subscribed to custom_battles_hub');
+        }
+      });
   }
-
-  currentUserId = userId;
-  activeBattleChannel = supabase.channel(`battles_${userId}`, {
-    config: {
-      broadcast: { self: false },
-    },
-  });
-
-  activeBattleChannel
-    .on('broadcast', { event: 'custom_battle_invite' }, ({ payload }: { payload: BattleInvite }) => {
-      if (payload && payload.receiverId === userId) {
-        inviteListeners.forEach((cb) => cb(payload));
-      }
-    })
-    .on('broadcast', { event: 'custom_battle_response' }, ({ payload }: any) => {
-      if (payload) {
-        responseListeners.forEach((cb) => cb(payload));
-      }
-    })
-    .subscribe();
 
   return () => {
     if (onInvite) {
@@ -116,17 +128,18 @@ export async function sendCustomBattleInvite(
     matchRoomId: `room_${sender.username}_${receiver.username}_${Date.now()}`,
   };
 
-  // Broadcast to receiver's dedicated channel
-  const targetChannel = supabase.channel(`battles_${receiver.id}`);
-  await targetChannel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      targetChannel.send({
-        type: 'broadcast',
-        event: 'custom_battle_invite',
-        payload: invite,
-      });
-    }
-  });
+  // Ensure channel is ready
+  if (!battleHubChannel) {
+    initBattleChannel(sender.id);
+  }
+
+  if (battleHubChannel) {
+    await battleHubChannel.send({
+      type: 'broadcast',
+      event: 'custom_battle_invite',
+      payload: invite,
+    });
+  }
 
   return invite;
 }
@@ -148,19 +161,21 @@ export async function acceptCustomBattleInvite(
     opponentUsername: currentUsername,
     mode: invite.mode,
     exerciseId: invite.exerciseId,
+    senderId: invite.senderId,
+    receiverId: invite.receiverId,
   };
 
-  // Notify sender on sender's channel
-  const senderChannel = supabase.channel(`battles_${invite.senderId}`);
-  await senderChannel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      senderChannel.send({
-        type: 'broadcast',
-        event: 'custom_battle_response',
-        payload,
-      });
-    }
-  });
+  if (!battleHubChannel) {
+    initBattleChannel(invite.receiverId);
+  }
+
+  if (battleHubChannel) {
+    await battleHubChannel.send({
+      type: 'broadcast',
+      event: 'custom_battle_response',
+      payload,
+    });
+  }
 
   return matchRoomId;
 }
@@ -172,16 +187,19 @@ export async function declineCustomBattleInvite(invite: BattleInvite) {
   const payload = {
     inviteId: invite.id,
     accepted: false,
+    senderId: invite.senderId,
+    receiverId: invite.receiverId,
   };
 
-  const senderChannel = supabase.channel(`battles_${invite.senderId}`);
-  await senderChannel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      senderChannel.send({
-        type: 'broadcast',
-        event: 'custom_battle_response',
-        payload,
-      });
-    }
-  });
+  if (!battleHubChannel) {
+    initBattleChannel(invite.receiverId);
+  }
+
+  if (battleHubChannel) {
+    await battleHubChannel.send({
+      type: 'broadcast',
+      event: 'custom_battle_response',
+      payload,
+    });
+  }
 }

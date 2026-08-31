@@ -251,33 +251,38 @@ export default function AppShell() {
           <View style={styles.incomingInviteOverlay}>
             <View style={styles.incomingInviteCard}>
               <View style={styles.incomingBadgePill}>
-                <Flame size={14} color="#F59E0B" />
-                <Text style={styles.incomingBadgeText}>INCOMING 1V1 CHALLENGE</Text>
+                <Swords size={13} color="#E2F163" />
+                <Text style={styles.incomingBadgeText}>INCOMING 1V1 DUEL</Text>
               </View>
 
               <View style={styles.incomingAvatarWrapper}>
-                <Avatar
-                  username={incomingInvite.senderUsername}
-                  size={68}
-                  config={incomingInvite.senderAvatar}
-                />
+                <View style={styles.avatarGlowRing}>
+                  <Avatar
+                    username={incomingInvite.senderUsername}
+                    size={72}
+                    config={incomingInvite.senderAvatar}
+                  />
+                </View>
               </View>
 
               <Text style={styles.incomingSenderName}>
                 @{incomingInvite.senderUsername}
               </Text>
               <Text style={styles.incomingChallengeText}>
-                has challenged you to a 1v1 <Text style={{ color: '#F8FAFC', fontWeight: '800' }}>{incomingInvite.exerciseName}</Text>{' '}
+                has challenged you to a 1v1{' '}
+                <Text style={{ color: '#E2F163', fontWeight: '900' }}>
+                  {incomingInvite.exerciseName}
+                </Text>{' '}
                 {incomingInvite.mode === 'faceoff' ? 'Live Camera Faceoff' : 'Score Duel'}!
               </Text>
 
               <View style={styles.incomingActionRow}>
                 <TouchableOpacity
                   style={styles.incomingDeclineBtn}
-                  activeOpacity={0.8}
+                  activeOpacity={0.75}
                   onPress={handleDeclineIncomingInvite}
                 >
-                  <X size={15} color="#EF4444" style={{ marginRight: 4 }} />
+                  <X size={15} color="#94A3B8" style={{ marginRight: 4 }} />
                   <Text style={styles.incomingDeclineText}>Decline</Text>
                 </TouchableOpacity>
 
@@ -286,7 +291,7 @@ export default function AppShell() {
                   activeOpacity={0.85}
                   onPress={handleAcceptIncomingInvite}
                 >
-                  <Swords size={15} color="#000000" style={{ marginRight: 6 }} />
+                  <Swords size={16} color="#0C0F14" style={{ marginRight: 6 }} />
                   <Text style={styles.incomingAcceptText}>ACCEPT BATTLE</Text>
                 </TouchableOpacity>
               </View>
@@ -375,57 +380,63 @@ const styles = StyleSheet.create({
     zIndex: 200,
   },
   incomingInviteCard: {
-    backgroundColor: '#161F30',
-    borderRadius: 24,
+    backgroundColor: '#161B22',
+    borderRadius: 28,
     padding: 24,
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 350,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 25,
     elevation: 10,
   },
   incomingBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(226, 241, 99, 0.12)',
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderColor: 'rgba(226, 241, 99, 0.35)',
     gap: 6,
     marginBottom: 16,
   },
   incomingBadgeText: {
-    color: '#FBBF24',
+    color: '#E2F163',
     fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
   incomingAvatarWrapper: {
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  avatarGlowRing: {
+    padding: 3,
+    borderRadius: 44,
+    borderWidth: 2,
+    borderColor: '#C8B6FF',
   },
   incomingSenderName: {
-    color: '#60A5FA',
-    fontSize: 18,
+    color: '#FFFFFF',
+    fontSize: 20,
     fontWeight: '900',
   },
   incomingChallengeText: {
-    color: '#CBD5E1',
-    fontSize: 13,
+    color: '#94A3B8',
+    fontSize: 13.5,
     textAlign: 'center',
     marginTop: 6,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   incomingActionRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 20,
+    gap: 12,
+    marginTop: 22,
     width: '100%',
   },
   incomingDeclineBtn: {
@@ -433,15 +444,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 14,
-    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    borderRadius: 18,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   incomingDeclineText: {
-    color: '#EF4444',
-    fontSize: 13,
+    color: '#94A3B8',
+    fontSize: 13.5,
     fontWeight: '800',
   },
   incomingAcceptBtn: {
@@ -449,12 +460,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F59E0B',
-    borderRadius: 14,
-    paddingVertical: 12,
+    backgroundColor: '#E2F163',
+    borderRadius: 18,
+    paddingVertical: 14,
+    shadowColor: '#E2F163',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
   incomingAcceptText: {
-    color: '#000000',
+    color: '#0C0F14',
     fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0.5,

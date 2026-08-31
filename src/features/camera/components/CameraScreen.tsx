@@ -69,42 +69,65 @@ export const POSE_HTML_BUNDLE = `
       font-size: 12.5px; cursor: pointer; letter-spacing: 0.01em;
     }
 
-    /* ---------- HUD ---------- */
+    /* ---------- HUD: STATE & VISIBILITY ---------- */
     #hud {
       position: absolute; z-index: 10;
-      top: max(14px, env(safe-area-inset-top));
+      top: max(82px, calc(env(safe-area-inset-top) + 68px));
       left: max(14px, env(safe-area-inset-left));
-      min-width: 128px; padding: 10px 13px; border-radius: 14px;
-      background: rgba(15, 23, 42, 0.68); border: 1px solid rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+      padding: 7px 11px; border-radius: 16px;
+      background: rgba(12, 15, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
       font-variant-numeric: tabular-nums;
+      display: flex; flex-direction: column; gap: 5px;
+      min-width: 136px;
     }
-    .hud-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .hud-row + .hud-row { margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-    .hud-label {
-      font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #64748B;
+    @media (orientation: landscape) {
+      #hud {
+        top: 68px;
+        left: max(14px, env(safe-area-inset-left));
+      }
+    }
+    .hud-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .hud-label-tag {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: #8E95A0;
       text-transform: uppercase;
     }
-    .hud-value-group { display: flex; align-items: center; gap: 6px; }
-    .state-dot {
-      width: 7px; height: 7px; border-radius: 50%; background: #60A5FA;
-      box-shadow: 0 0 6px 1px rgba(96, 165, 250, 0.7); transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    .state-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(226, 241, 99, 0.14); border: 1px solid rgba(226, 241, 99, 0.35);
+      border-radius: 10px; padding: 3px 8px;
+      transition: all 0.2s ease;
     }
-    .hud-value {
-      font-size: 13.5px; font-weight: 800; letter-spacing: 0.04em; color: #F8FAFC;
+    .state-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #E2F163;
+      box-shadow: 0 0 8px 1px #E2F163; transition: all 0.2s ease;
+    }
+    .state-text {
+      font-size: 11.5px; font-weight: 900; letter-spacing: 0.04em; color: #E2F163;
       text-transform: uppercase; transition: color 0.2s ease;
     }
-    .vis-bar-track {
-      width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); overflow: hidden;
+    .vis-box {
+      display: flex; align-items: center; gap: 7px;
     }
-    .vis-bar-fill {
-      height: 100%; width: 0%; border-radius: 2px; background: #34D399;
+    .vis-value {
+      font-size: 12px; font-weight: 800; color: #E2F163;
+    }
+    .vis-track {
+      width: 48px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+    .vis-fill {
+      height: 100%; width: 0%; border-radius: 3px; background: #E2F163;
       transition: width 0.2s ease, background-color 0.2s ease;
     }
     #hud-hint {
-      margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 10.5px; line-height: 13px; color: #FCA5A5; display: none;
+      margin-top: 2px; padding: 4px 8px; border-radius: 8px;
+      background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);
+      font-size: 10px; font-weight: 700; color: #FCA5A5; display: none; text-align: center;
     }
   </style>
 
@@ -132,20 +155,20 @@ export const POSE_HTML_BUNDLE = `
 
     <div id="hud">
       <div class="hud-row">
-        <span class="hud-label">State</span>
-        <span class="hud-value-group">
+        <span class="hud-label-tag">STATE</span>
+        <div id="state-badge" class="state-badge">
           <span id="state-dot" class="state-dot"></span>
-          <span id="state-value" class="hud-value">Top</span>
-        </span>
+          <span id="state-value" class="state-text">Top</span>
+        </div>
       </div>
       <div class="hud-row">
-        <span class="hud-label">Visibility</span>
-        <span class="hud-value-group">
-          <span id="visibility-value" class="hud-value">--</span>
-          <span class="vis-bar-track"><span id="visibility-fill" class="vis-bar-fill"></span></span>
-        </span>
+        <span class="hud-label-tag">VISIBILITY</span>
+        <div class="vis-box">
+          <span id="visibility-value" class="vis-value">--</span>
+          <div class="vis-track"><div id="visibility-fill" class="vis-fill"></div></div>
+        </div>
       </div>
-      <div id="hud-hint">Move fully into frame</div>
+      <div id="hud-hint">⚠️ Step back into frame</div>
     </div>
   </div>
 
@@ -164,6 +187,9 @@ export const POSE_HTML_BUNDLE = `
     let currentProgress = 20;
     let poseInstance = null;
     let selectedComplexity = 1;
+    let thumbCanvas = null;
+    let thumbCtx = null;
+    let lastThumbTime = 0;
 
     function setProgress(pct, statusMsg, isError) {
       currentProgress = Math.max(currentProgress, Math.min(100, pct));
@@ -243,19 +269,28 @@ export const POSE_HTML_BUNDLE = `
 
     // ---------- HUD rendering ----------
     const STATE_STYLE = {
-      TOP: { text: 'Top', color: '#60A5FA' },
-      DOWN: { text: 'Down', color: '#FBBF24' },
-      BOTTOM: { text: 'Bottom', color: '#34D399' }
+      TOP: { text: 'Standing ▲', color: '#E2F163', bg: 'rgba(226, 241, 99, 0.15)', border: 'rgba(226, 241, 99, 0.35)' },
+      DOWN: { text: 'Squatting ▼', color: '#C8B6FF', bg: 'rgba(200, 182, 255, 0.18)', border: 'rgba(200, 182, 255, 0.4)' },
+      BOTTOM: { text: 'Parallel ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' }
     };
 
     function renderState(state) {
       const cfg = STATE_STYLE[state] || STATE_STYLE.TOP;
       const dot = document.getElementById('state-dot');
       const label = document.getElementById('state-value');
-      dot.style.background = cfg.color;
-      dot.style.boxShadow = '0 0 6px 1px ' + cfg.color;
-      label.textContent = cfg.text;
-      label.style.color = cfg.color;
+      const badge = document.getElementById('state-badge');
+      if (dot) {
+        dot.style.background = cfg.color;
+        dot.style.boxShadow = '0 0 8px 1px ' + cfg.color;
+      }
+      if (label) {
+        label.textContent = cfg.text;
+        label.style.color = cfg.color;
+      }
+      if (badge) {
+        badge.style.background = cfg.bg;
+        badge.style.borderColor = cfg.border;
+      }
     }
 
     function renderVisibility(value) {
@@ -263,12 +298,18 @@ export const POSE_HTML_BUNDLE = `
       const fillEl = document.getElementById('visibility-fill');
       const hintEl = document.getElementById('hud-hint');
       const pct = Math.round(value * 100);
-      const color = value >= 0.7 ? '#34D399' : value >= 0.4 ? '#FBBF24' : '#F87171';
-      valueEl.textContent = pct + '%';
-      valueEl.style.color = color;
-      fillEl.style.width = Math.max(4, pct) + '%';
-      fillEl.style.backgroundColor = color;
-      hintEl.style.display = value < 0.5 ? 'block' : 'none';
+      const color = value >= 0.7 ? '#E2F163' : value >= 0.4 ? '#FBBF24' : '#F87171';
+      if (valueEl) {
+        valueEl.textContent = pct + '%';
+        valueEl.style.color = color;
+      }
+      if (fillEl) {
+        fillEl.style.width = Math.max(4, pct) + '%';
+        fillEl.style.backgroundColor = color;
+      }
+      if (hintEl) {
+        hintEl.style.display = value < 0.5 ? 'block' : 'none';
+      }
     }
 
     function updateSquatHud(pose) {
@@ -333,6 +374,9 @@ export const POSE_HTML_BUNDLE = `
           if (!modelReady) {
             modelReady = true;
             setProgress(100, 'Ready');
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MODEL_READY' }));
+            }
             setTimeout(() => {
               loaderOverlay.style.opacity = '0';
               loaderOverlay.style.transform = 'scale(0.95)';
@@ -341,6 +385,25 @@ export const POSE_HTML_BUNDLE = `
           }
 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // High-Speed Smooth HD Camera Stream for 1v1 Faceoff (25 FPS, 480x360)
+          const nowTime = Date.now();
+          if (nowTime - lastThumbTime >= 40 && video && video.videoWidth > 0) {
+            lastThumbTime = nowTime;
+            try {
+              if (!thumbCanvas) {
+                thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = 480;
+                thumbCanvas.height = 360;
+                thumbCtx = thumbCanvas.getContext('2d', { alpha: false });
+              }
+              thumbCtx.drawImage(video, 0, 0, 480, 360);
+              const frameJpeg = thumbCanvas.toDataURL('image/jpeg', 0.65);
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'camera_frame', frame: frameJpeg }));
+              }
+            } catch (e) {}
+          }
 
           const landmarks = results.poseLandmarks;
 
