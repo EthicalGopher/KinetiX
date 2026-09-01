@@ -15,11 +15,13 @@ import {
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Camera } from 'expo-camera';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import {
   Dumbbell,
   LogOut,
   RefreshCw,
   RotateCcw,
+  Smartphone,
   Sparkles,
   SwitchCamera,
   Swords,
@@ -309,6 +311,25 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     webViewRef.current?.injectJavaScript('window.toggleFacingMode && window.toggleFacingMode(); true;');
   };
 
+  const handleToggleOrientation = async () => {
+    try {
+      if (isLandscape) {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } else {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT);
+      }
+    } catch (e) {
+      console.warn('Orientation toggle error:', e);
+    }
+  };
+
+  const handleClose = async () => {
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } catch (e) {}
+    onClose();
+  };
+
   const resetMatchState = () => {
     setSelfScore(0);
     setOpponentScore(0);
@@ -521,8 +542,9 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
       {/* FLOATING DRAGGABLE ACTIONS WIDGET */}
       <DraggableActionsWidget
-        onLeave={onClose}
+        onLeave={handleClose}
         onFlipCamera={handleFlipCamera}
+        onToggleOrientation={handleToggleOrientation}
         onTryAgain={handleRestartMatch}
         onChallengeSamePlayer={handleChallengeSamePlayer}
         onSendFriendRequest={handleSendFriendRequest}
@@ -537,6 +559,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 interface DraggableWidgetProps {
   onLeave: () => void;
   onFlipCamera: () => void;
+  onToggleOrientation: () => void;
   onTryAgain: () => void;
   onChallengeSamePlayer: () => void;
   onSendFriendRequest: () => void;
@@ -545,6 +568,7 @@ interface DraggableWidgetProps {
 const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
   onLeave,
   onFlipCamera,
+  onToggleOrientation,
   onTryAgain,
   onChallengeSamePlayer,
   onSendFriendRequest,
@@ -556,7 +580,7 @@ const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
     ? Math.max(12, windowHeight - 64)
     : Math.max(12, windowHeight - 120);
   const defaultX = isLandscape
-    ? Math.max(12, (windowWidth - 270) / 2)
+    ? Math.max(12, (windowWidth - 310) / 2)
     : 16;
 
   const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
@@ -629,7 +653,16 @@ const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
               <SwitchCamera size={16} color="#11141A" />
             </TouchableOpacity>
 
-            {/* 3. Try Again / Rematch */}
+            {/* 3. Rotate Orientation (Portrait / Landscape) */}
+            <TouchableOpacity
+              style={styles.widgetActionBtn}
+              activeOpacity={0.75}
+              onPress={onToggleOrientation}
+            >
+              <Smartphone size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 4. Try Again / Rematch */}
             <TouchableOpacity
               style={styles.widgetActionBtn}
               activeOpacity={0.75}
@@ -638,7 +671,7 @@ const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
               <RotateCcw size={16} color="#11141A" />
             </TouchableOpacity>
 
-            {/* 4. Challenge Same Player */}
+            {/* 5. Challenge Same Player */}
             <TouchableOpacity
               style={[styles.widgetActionBtn, styles.challengeActionBtn]}
               activeOpacity={0.75}
@@ -647,7 +680,7 @@ const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
               <Swords size={16} color="#11141A" />
             </TouchableOpacity>
 
-            {/* 5. Send Friend Request */}
+            {/* 6. Send Friend Request */}
             <TouchableOpacity
               style={[styles.widgetActionBtn, styles.friendActionBtn]}
               activeOpacity={0.75}

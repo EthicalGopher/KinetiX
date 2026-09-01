@@ -439,7 +439,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </View>
               )}
 
-              <Text style={styles.heroName}>{fullName || username || 'plato Athlete'}</Text>
+              <Text style={styles.heroName}>{fullName || username || 'Ojas Athlete'}</Text>
               <Text style={styles.heroUsername}>@{username || 'athlete'}</Text>
 
               <View style={styles.badgeRow}>

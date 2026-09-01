@@ -65,7 +65,7 @@ export async function getOrCreateUserProfile(user: any): Promise<UserProfile> {
       phone_number: user.user_metadata?.phone_number || user.phone || '',
       full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
       avatar_config: user.user_metadata?.avatar_config || defaultAvatar,
-      bio: 'Ready to crush daily fitness milestones with plato! 🔥',
+      bio: 'Ready to crush daily fitness milestones with Ojas! 🔥',
       fitness_goal: 'Strength & Stamina',
     };
 
@@ -93,7 +93,7 @@ export async function getOrCreateUserProfile(user: any): Promise<UserProfile> {
       phone_number: '',
       full_name: '',
       avatar_config: defaultAvatar,
-      bio: 'Ready to crush daily fitness milestones with plato! 🔥',
+      bio: 'Ready to crush daily fitness milestones with Ojas! 🔥',
       fitness_goal: 'Strength & Stamina',
     };
   }

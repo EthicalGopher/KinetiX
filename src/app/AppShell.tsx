@@ -137,8 +137,8 @@ export default function AppShell() {
     return (
       <SafeAreaProvider>
         <View style={[styles.container, styles.centerLoading]}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Initializing plato...</Text>
+          <ActivityIndicator size="large" color="#E2F163" />
+          <Text style={styles.loadingText}>Initializing Ojas...</Text>
         </View>
       </SafeAreaProvider>
     );
@@ -241,7 +241,7 @@ export default function AppShell() {
         {matchWaiting && (
           <View style={styles.matchWaitingOverlay}>
             <View style={styles.matchWaitingCard}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#E2F163" />
               <Text style={styles.matchWaitingTitle}>Finding Opponent</Text>
               <Text style={styles.matchWaitingDesc}>Waiting for another player to join...</Text>
               <TouchableOpacity

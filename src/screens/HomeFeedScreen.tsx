@@ -423,11 +423,11 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
             onPress={() => onNavigateToTab?.('profile')}
           >
             <View style={[styles.avatarWrapper, styles.placeholderFriendCircle]}>
-              <Avatar username="plato_bot" size={54} />
+              <Avatar username="ojas_bot" size={54} />
               <View style={styles.onlinePresenceDot} />
             </View>
             <Text style={styles.avatarLabel} numberOfLines={1}>
-              platoBot
+              OjasBot
             </Text>
           </TouchableOpacity>
         )}

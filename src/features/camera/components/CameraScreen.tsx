@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Camera } from 'expo-camera';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
@@ -349,7 +350,7 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
       }
 
       if (completedRep && window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount, poseName: 'Squats' }));
       }
     }
 
@@ -746,7 +747,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
   const line1Rotate = useRef(new Animated.Value(0)).current;
   const line2Scale = useRef(new Animated.Value(1)).current;
   const line3Rotate = useRef(new Animated.Value(0)).current;
-  const menuItemsAnim = useRef([new Animated.Value(0), new Animated.Value(0)]).current;
+  const menuItemsAnim = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -809,6 +810,29 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     }
   };
 
+  const handleToggleOrientation = async () => {
+    try {
+      const current = await ScreenOrientation.getOrientationAsync();
+      const isLandscape =
+        current === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
+        current === ScreenOrientation.Orientation.LANDSCAPE_RIGHT;
+      if (isLandscape) {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } else {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT);
+      }
+    } catch (e) {
+      console.warn('ScreenOrientation toggle error:', e);
+    }
+  };
+
+  const handleClose = async () => {
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } catch (e) {}
+    onClose();
+  };
+
   const handleWebViewLoad = () => {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`window.setInitialComplexity(${numericComplexity}); true;`);
@@ -837,13 +861,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       }),
     ]).start();
 
-    Animated.stagger(100, [
+    Animated.stagger(80, [
       Animated.spring(menuItemsAnim[0], {
         toValue: nextOpen ? 1 : 0,
         friction: 8,
         useNativeDriver: false,
       }),
       Animated.spring(menuItemsAnim[1], {
+        toValue: nextOpen ? 1 : 0,
+        friction: 8,
+        useNativeDriver: false,
+      }),
+      Animated.spring(menuItemsAnim[2], {
         toValue: nextOpen ? 1 : 0,
         friction: 8,
         useNativeDriver: false,
@@ -886,12 +915,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       >
         {menuItemsAnim.map((anim, i) => {
           const itemConfigs = [
-            { icon: '✕', color: '#EF4444', label: 'Close', onPress: onClose },
+            { icon: '✕', color: '#EF4444', label: 'Close', onPress: handleClose },
             { icon: '🔄', color: '#3B82F6', label: 'Flip', onPress: handleToggleFlip },
+            { icon: '📱', color: '#10B981', label: 'Rotate', onPress: handleToggleOrientation },
           ];
           const pos = [
             { x: 80, y: -90 },
-            { x: 150, y: -45 },
+            { x: 145, y: -45 },
+            { x: 145, y: 35 },
           ];
           const cfg = itemConfigs[i];
           const position = pos[i];

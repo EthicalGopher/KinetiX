@@ -29,7 +29,7 @@ export const GetStartedScreen: React.FC<GetStartedScreenProps> = ({
       <View style={styles.container}>
         {/* Top Brand Logo */}
         <View style={styles.header}>
-          <Text style={styles.brandLogo}>plato</Text>
+          <Text style={styles.brandLogo}>Ojas</Text>
         </View>
 
         {/* Floating Mascot Vector Artwork (No Cards) */}

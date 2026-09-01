@@ -1,4 +1,4 @@
-# 💪 Plato AI Fitness & 1v1 Real-Time Faceoff Arena
+# 💪 Ojas AI Fitness & 1v1 Real-Time Faceoff Arena
 
 An advanced, production-grade AI Fitness and 1v1 Real-time Exercise Duel mobile platform built with **React Native (Expo SDK 54)**, **TypeScript**, **On-Device MediaPipe Pose Tracking**, **Supabase Realtime**, and **High-Speed GPU Canvas Video Streaming**.
 
@@ -24,7 +24,7 @@ An advanced, production-grade AI Fitness and 1v1 Real-time Exercise Duel mobile 
 
 ```
  ┌─────────────────────────────────────────────────────────────────────────────┐
- │                         Plato Mobile App (React Native)                     │
+ │                         Ojas Mobile App (React Native)                      │
  └──────┬──────────────────────┬────────────────────────┬──────────────────────┘
         │                      │                        │
         ▼                      ▼                        ▼
@@ -236,4 +236,4 @@ npx expo run:ios
 ---
 
 ## 🏆 Summary
-Plato provides an end-to-end competitive AI fitness experience. With on-device WebGL pose detection, instant Supabase Realtime friend invitations, and smooth 50/50 side-by-side GPU video streaming, athletes can duel and track their form in real time with zero latency.
+Ojas provides an end-to-end competitive AI fitness experience. With on-device WebGL pose detection, instant Supabase Realtime friend invitations, and smooth 50/50 side-by-side GPU video streaming, athletes can duel and track their form in real time with zero latency.
