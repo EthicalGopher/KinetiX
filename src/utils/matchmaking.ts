@@ -11,7 +11,9 @@ export type MatchMessage =
   | { type: 'pose'; landmarks: any[]; fps: number }
   | { type: 'score'; score: number }
   | { type: 'peer_ready' }
-  | { type: 'rematch_request' }
+  | { type: 'rematch_request'; sender?: string }
+  | { type: 'rematch_accepted'; sender?: string }
+  | { type: 'rematch_declined'; sender?: string }
   | { type: 'leave' };
 
 export type QueueCounts = {

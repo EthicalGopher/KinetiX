@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
       </View>
       <View style={styles.nameTextBox}>
         <Text style={styles.greetingText} numberOfLines={1}>
-          HI {activeUsername.toUpperCase()}
+          {activeUsername.toUpperCase()}
         </Text>
         <View style={styles.statusRow}>
           <Flame size={12} color="#E2F163" style={{ marginRight: 3 }} />

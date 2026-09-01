@@ -49,7 +49,7 @@ interface HomeFeedScreenProps {
   selectedModel: 'light' | 'medium' | 'high';
   onExerciseSelect: (exercise: ExerciseItem) => void;
   onSettingsPress: () => void;
-  onOpenCamera: () => void;
+  onOpenCamera: (exerciseId?: string, exerciseName?: string) => void;
   onNavigateToTab?: (tab: 'profile' | 'workouts') => void;
   featuredExercise?: ExerciseItem;
 }
@@ -437,7 +437,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       <TouchableOpacity
         style={styles.aiTrackerCard}
         activeOpacity={0.9}
-        onPress={onOpenCamera}
+        onPress={() => onOpenCamera(activeExercise?.id, activeExercise?.name)}
       >
         <View style={styles.aiCardBody}>
           <View style={styles.aiIconCircle}>

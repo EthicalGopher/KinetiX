@@ -32,7 +32,7 @@ import {
   addMatchMessageListener,
   sendMatchMessage,
 } from '../../../utils/matchmaking';
-import { POSE_HTML_BUNDLE } from '../../camera/components/CameraScreen';
+import { getPoseHtmlBundle } from '../../camera/components/CameraScreen';
 import { recordExerciseMatchResult } from '../../../utils/rankingService';
 import { useUserStore } from '../../../store/userStore';
 import { sendFriendRequest } from '../../../utils/friendService';
@@ -179,8 +179,35 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         opponentWebViewRef.current?.injectJavaScript(`window.updateFrame && window.updateFrame('${msg.data}'); true;`);
       }
       if (msg.type === 'rematch_request') {
-        Alert.alert('Rematch!', `@${opponentUsername} requested a rematch.`);
-        handleRestartMatch();
+        Alert.alert(
+          'Rematch Request! ⚔️',
+          `@${opponentUsername} wants to rematch in ${exerciseId === '3' ? 'Triangle Pose' : 'Squats'}!`,
+          [
+            {
+              text: 'Decline',
+              style: 'cancel',
+              onPress: () => {
+                sendMatchMessage({ type: 'rematch_declined', sender: selfUsername });
+              },
+            },
+            {
+              text: 'Accept ⚡',
+              onPress: () => {
+                sendMatchMessage({ type: 'rematch_accepted', sender: selfUsername });
+                resetMatchState();
+              },
+            },
+          ]
+        );
+      }
+
+      if (msg.type === 'rematch_accepted') {
+        Alert.alert('Rematch Accepted! 🔥', `@${opponentUsername} accepted the rematch! Starting now.`);
+        resetMatchState();
+      }
+
+      if (msg.type === 'rematch_declined') {
+        Alert.alert('Rematch Declined', `@${opponentUsername} declined the rematch.`);
       }
     });
 
@@ -188,7 +215,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       removeMatchListener();
       disconnectMatchSocket();
     };
-  }, [opponentUsername, mode]);
+  }, [opponentUsername, mode, selfUsername, exerciseId]);
 
   // Automatic Fallback for Opponent Ready (e.g. offline bot or fast networks)
   useEffect(() => {
@@ -282,7 +309,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     webViewRef.current?.injectJavaScript('window.toggleFacingMode && window.toggleFacingMode(); true;');
   };
 
-  const handleRestartMatch = () => {
+  const resetMatchState = () => {
     setSelfScore(0);
     setOpponentScore(0);
     setTimeLeft(120);
@@ -291,7 +318,11 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     matchEndedRef.current = false;
     recordedResultRef.current = false;
     setMatchPhase('setup_countdown');
-    sendMatchMessage({ type: 'rematch_request' });
+  };
+
+  const handleRestartMatch = () => {
+    sendMatchMessage({ type: 'rematch_request', sender: selfUsername });
+    Alert.alert('Rematch Sent ⚔️', `Rematch request sent to @${opponentUsername}. Waiting for response...`);
   };
 
   const handleChallengeSamePlayer = async () => {
@@ -339,6 +370,8 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     }
   };
 
+  const htmlBundle = getPoseHtmlBundle(exerciseId || 'squats');
+
   return (
     <View style={styles.container}>
       <StatusBar hidden />
@@ -349,7 +382,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           <WebView
             ref={webViewRef}
             source={{
-              html: POSE_HTML_BUNDLE,
+              html: htmlBundle,
               baseUrl: 'https://cdn.jsdelivr.net',
             }}
             userAgent="MobilePoseApp/1.0"
@@ -426,7 +459,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
             <WebView
               ref={webViewRef}
               source={{
-                html: POSE_HTML_BUNDLE,
+                html: htmlBundle,
                 baseUrl: 'https://cdn.jsdelivr.net',
               }}
               userAgent="MobilePoseApp/1.0"

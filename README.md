@@ -52,7 +52,9 @@ An advanced, production-grade AI Fitness and 1v1 Real-time Exercise Duel mobile 
 
 ---
 
-### 2. Exercise State Machine & Rep Counting
+### 2. Exercise State Machines & Biomechanical Form Engines
+
+#### 🏋️ A. Squat Engine
 - **Angle Calculation**: Tracks hip-to-knee-to-ankle vectors using trigonometry (`Math.atan2`):
   $$\theta = \left|\text{atan2}(y_c - y_b, x_c - x_b) - \text{atan2}(y_a - y_b, x_a - x_b)\right| \times \frac{180}{\pi}$$
 - **Knee Angle Smoothing**: Applies a moving window average (`SMOOTHING_WINDOW = 5`) across both knees to eliminate jitter.
@@ -60,8 +62,45 @@ An advanced, production-grade AI Fitness and 1v1 Real-time Exercise Duel mobile 
   - **`TOP` (Standing)**: Knee angle $\ge 155^\circ$.
   - **`DOWN` (Descending)**: Angle between $95^\circ$ and $155^\circ$.
   - **`BOTTOM` (Parallel / Deep Squat)**: Knee angle $\le 95^\circ$.
-- **Validation**: A rep is only awarded when an athlete successfully transitions `TOP` $\rightarrow$ `DOWN` $\rightarrow$ `BOTTOM` $\rightarrow$ `TOP` with verified multi-frame debounce.
-- **Real-Time Dispatch**: Dispatches `{ type: 'SQUAT_REP', repCount }` across the WebView bridge to update scoreboard state and sync scores to the opponent.
+- **Validation**: Rep counted upon completing `TOP` $\rightarrow$ `DOWN` $\rightarrow$ `BOTTOM` $\rightarrow$ `TOP`.
+
+#### 📐 B. Triangle Pose (Trikonasana) Engine
+- **Biomechanical Angles & Rules** (ported directly from `backend/Pose/triangle_pose/triangle_pose.py`):
+  - **Leg Extension**: Both front and back knees must be straight ($\ge 155^\circ$).
+  - **Top Arm Reaching**: Top arm shoulder extension $\ge 135^\circ$ and elbow extension $\ge 150^\circ$.
+  - **Bottom Arm Reach**: Bottom arm extended along leg ($\ge 150^\circ$).
+  - **Lateral Hip Hinge**: Shoulder tilt $\ge 25^\circ$ from vertical.
+  - **Chest Stacking**: Shoulder $Z$-depth divergence $\le 0.35$ (prevents forward chest collapse).
+- **Real-Time Audio/Visual Coaching Cues**:
+  - `✨ Perfect Alignment! Hold: Xs` (State: `Perfect Hold ✓` in `#34D399`)
+  - `⚠️ Keep front leg straight` (State: `Adjust Form ⚠️` in `#FBBF24`)
+  - `⚠️ Reach top arm straight up`
+  - `⚠️ Hinge deeper laterally from hip`
+  - `⚠️ Open chest & stack shoulders`
+- **Hold Duration Scoring**: Automatically awards +1 Point / Rep for every 3 seconds held in perfect form.
+
+#### 🦵 C. Lunges Engine
+- **Biomechanical Angles & Rules** (ported directly from `backend/Pose/lunge/lunge.py`):
+  - **Lead Leg Detection**: Dynamically determines front vs back leg by displacement of ankle vs mid-hip and facing direction.
+  - **Front Knee Depth**: Front knee $\le 100^\circ$ at bottom apex.
+  - **Back Knee Clearance**: Back knee $\le 115^\circ$ for complete step depth.
+  - **Torso Posture**: Monitors vertical torso deviation ($\le 22^\circ$) to prevent excessive forward leaning.
+- **State Transitions**: `UP (Standing >= 160°)` $\rightarrow$ `DOWN` $\rightarrow$ `BOTTOM (<= 100°)` $\rightarrow$ `UP`.
+
+#### 🧘 D. Crunches Engine
+- **Biomechanical Angles & Rules** (ported directly from `backend/Pose/crunch/crunch.py`):
+  - **Torso Floor Angle**: Mid-shoulder to mid-hip vector relative to horizontal floor.
+  - **Flat Base**: Torso angle $\le 8^\circ$ (`DOWN`).
+  - **Shoulder Elevation Apex**: Torso angle $\ge 22^\circ$ (`UP`).
+  - **Overlift Guard**: Flags excessive rise ($> 42^\circ$) to keep contraction isolated to abdominals.
+- **State Transitions**: `DOWN (<= 8°)` $\rightarrow$ `CRUNCHING` $\rightarrow$ `UP (>= 22°)` $\rightarrow$ `RELEASING` $\rightarrow$ `DOWN`.
+
+#### 💪 E. Sit-ups Engine
+- **Biomechanical Angles & Rules** (ported directly from `backend/Pose/situp/situp.py`):
+  - **Torso Floor Angle**: Mid-shoulder to mid-hip vector relative to horizontal floor.
+  - **Flat Base**: Torso angle $\le 20^\circ$ (`DOWN`).
+  - **Sitting Apex**: Torso angle $\ge 60^\circ$ (`UP`).
+- **State Transitions**: `DOWN (<= 20°)` $\rightarrow$ `ASCENDING` $\rightarrow$ `UP (>= 60°)` $\rightarrow$ `DESCENDING` $\rightarrow$ `DOWN`.
 
 ---
 

@@ -3,7 +3,7 @@
     "name": "Expo Camera Test",
     "slug": "expo-camera-test",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {

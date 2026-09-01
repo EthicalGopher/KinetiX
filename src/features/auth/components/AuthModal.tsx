@@ -103,13 +103,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
         if (error) {
           setErrorMsg(error.message);
         } else if (data.session) {
-          // Auto-confirm enabled in Supabase
           setUser(data.user);
           setStep('profile');
           if (onUserChange) onUserChange(data.user);
         } else {
-          // Email confirmation is required by Supabase!
-          // User must verify email before logging in.
           setStep('verify_email');
         }
       } else {
@@ -173,11 +170,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
+          {/* Header Row */}
           <View style={styles.headerRow}>
-            <Text style={styles.modalTitle}>
-              {user ? '👤 User Profile' : step === 'welcome' ? 'Welcome' : step === 'verify_email' ? '✉️ Verify Email' : isSignUp ? 'Create Account' : 'Sign In'}
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <View style={styles.titleWithBadge}>
+              <Text style={styles.modalTitle}>
+                {user ? 'Athlete Profile' : step === 'verify_email' ? 'Verify Email' : isSignUp ? 'Create Account' : 'Sign In'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -192,19 +192,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
 
               <View style={styles.statusBadge}>
                 <View style={styles.greenDot} />
-                <Text style={styles.statusBadgeText}>Online</Text>
+                <Text style={styles.statusBadgeText}>Active Athlete</Text>
               </View>
 
               {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
               <TouchableOpacity
                 style={styles.signOutButton}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
                 onPress={handleSignOut}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFF" />
+                  <ActivityIndicator color="#11141A" />
                 ) : (
                   <Text style={styles.signOutButtonText}>Sign Out</Text>
                 )}
@@ -213,22 +213,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
           ) : step === 'verify_email' ? (
             <View style={styles.verifyContainer}>
               <View style={styles.verifyIconBadge}>
-                <Text style={{ fontSize: 32 }}>📬</Text>
+                <Text style={{ fontSize: 30 }}>📬</Text>
               </View>
               <Text style={styles.verifyTitle}>Check Your Inbox</Text>
               <Text style={styles.verifyDescription}>
                 We sent a verification link to:{'\n'}
                 <Text style={styles.verifyHighlightEmail}>{email}</Text>
                 {'\n\n'}
-                Please open the confirmation link in your email to activate your account, then proceed to sign in.
+                Please verify your email to activate your account, then sign in.
               </Text>
 
               {resendStatus ? <Text style={styles.successText}>{resendStatus}</Text> : null}
               {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
               <TouchableOpacity
-                style={styles.getStartedButton}
-                activeOpacity={0.85}
+                style={styles.primaryActionButton}
+                activeOpacity={0.88}
                 onPress={() => {
                   setIsSignUp(false);
                   setStep('auth');
@@ -236,7 +236,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   setResendStatus('');
                 }}
               >
-                <Text style={styles.getStartedButtonText}>Proceed to Sign In →</Text>
+                <Text style={styles.primaryActionButtonText}>Proceed to Sign In →</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -246,24 +246,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                 disabled={resending}
               >
                 {resending ? (
-                  <ActivityIndicator color="#94A3B8" size="small" />
+                  <ActivityIndicator color="#E2F163" size="small" />
                 ) : (
                   <Text style={styles.resendButtonText}>Resend Verification Email</Text>
                 )}
-              </TouchableOpacity>
-            </View>
-          ) : step === 'welcome' ? (
-            <View style={styles.welcomeContainer}>
-              <Text style={styles.welcomeSubtext}>
-                Join thousands of users tracking their fitness journey in real-time.
-              </Text>
-
-              <TouchableOpacity
-                style={styles.getStartedButton}
-                activeOpacity={0.85}
-                onPress={() => setStep('auth')}
-              >
-                <Text style={styles.getStartedButtonText}>Get Started</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -282,16 +268,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                         disabled={fetchingUsername}
                       >
                         {fetchingUsername ? (
-                          <ActivityIndicator size="small" color="#60A5FA" />
+                          <ActivityIndicator size="small" color="#E2F163" />
                         ) : (
-                          <Text style={styles.randomizeBtnText}>🎲 Generate</Text>
+                          <Text style={styles.randomizeBtnText}>⚡ Randomize</Text>
                         )}
                       </TouchableOpacity>
                     </View>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="e.g. whitefrog232"
-                      placeholderTextColor="#64748B"
+                      placeholder="e.g. shadow_runner"
+                      placeholderTextColor="#5A6679"
                       value={username}
                       onChangeText={setUsername}
                       autoCapitalize="none"
@@ -303,8 +289,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   <Text style={styles.inputLabel}>Email Address</Text>
                   <TextInput
                     style={styles.textInput}
-                    placeholder="name@example.com"
-                    placeholderTextColor="#64748B"
+                    placeholder="athlete@example.com"
+                    placeholderTextColor="#5A6679"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={email}
@@ -317,7 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   <TextInput
                     style={styles.textInput}
                     placeholder="••••••••"
-                    placeholderTextColor="#64748B"
+                    placeholderTextColor="#5A6679"
                     secureTextEntry
                     value={password}
                     onChangeText={setPassword}
@@ -325,16 +311,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                 </View>
 
                 <TouchableOpacity
-                  style={styles.submitButton}
-                  activeOpacity={0.85}
+                  style={styles.primaryActionButton}
+                  activeOpacity={0.88}
                   onPress={handleAuth}
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#FFF" />
+                    <ActivityIndicator color="#11141A" />
                   ) : (
-                    <Text style={styles.submitButtonText}>
-                      {isSignUp ? 'Sign Up' : 'Sign In'}
+                    <Text style={styles.primaryActionButtonText}>
+                      {isSignUp ? 'Create Athlete Account' : 'Sign In'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -347,7 +333,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                   }}
                 >
                   <Text style={styles.switchModeText}>
-                    {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                    {isSignUp ? 'Already have an account? ' : "New athlete? "}
+                    <Text style={styles.switchModeHighlight}>
+                      {isSignUp ? 'Sign In' : 'Sign Up'}
+                    </Text>
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -362,140 +351,132 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(5, 8, 14, 0.82)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   modalCard: {
     width: '100%',
-    maxWidth: 400,
-    maxHeight: '80%',
-    backgroundColor: '#182030',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    maxWidth: 390,
+    maxHeight: '85%',
+    backgroundColor: '#161F30',
+    borderRadius: 28,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 10,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   modalTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.3,
   },
   closeBtn: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeBtnText: {
-    color: '#94A3B8',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  welcomeContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  welcomeSubtext: {
-    color: '#94A3B8',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  getStartedButton: {
-    backgroundColor: '#2563EB',
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  getStartedButtonText: {
-    color: '#FFFFFF',
+    color: '#8E95A0',
     fontSize: 16,
     fontWeight: '700',
   },
   profileContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   avatarLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#2A3447',
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: '#1A2438',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#E2F163',
   },
   userNameText: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '900',
+    letterSpacing: -0.3,
   },
   userEmailText: {
-    color: '#94A3B8',
+    color: '#8E95A0',
     fontSize: 13,
     marginTop: 2,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: 'rgba(226, 241, 99, 0.12)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    marginBottom: 14,
-  },
-  keyTipText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    lineHeight: 15,
+    borderColor: 'rgba(226, 241, 99, 0.25)',
+    marginBottom: 18,
   },
   greenDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#E2F163',
     marginRight: 6,
   },
   statusBadgeText: {
-    color: '#10B981',
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#E2F163',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   signOutButton: {
     backgroundColor: '#EF4444',
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingVertical: 14,
+    borderRadius: 24,
     alignItems: 'center',
+    marginTop: 6,
   },
   signOutButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
   },
   formContainer: {
     marginTop: 4,
   },
   errorText: {
-    color: '#EF4444',
+    color: '#F87171',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 12,
     textAlign: 'center',
+    backgroundColor: 'rgba(248, 113, 113, 0.12)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
   inputGroup: {
     marginBottom: 14,
@@ -507,104 +488,120 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   inputLabel: {
-    color: '#CBD5E1',
+    color: '#8E95A0',
     fontSize: 12,
     fontWeight: '700',
+    marginBottom: 4,
   },
   randomizeBtn: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderColor: 'rgba(226, 241, 99, 0.3)',
   },
   randomizeBtnText: {
-    color: '#818CF8',
+    color: '#E2F163',
     fontSize: 11,
     fontWeight: '800',
   },
   textInput: {
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: '#0D111A',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     color: '#FFFFFF',
     fontSize: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  submitButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 12,
-    borderRadius: 20,
+  primaryActionButton: {
+    backgroundColor: '#E2F163',
+    paddingVertical: 15,
+    borderRadius: 26,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#E2F163',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+  primaryActionButtonText: {
+    color: '#11141A',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
   switchModeButton: {
-    marginTop: 14,
+    marginTop: 16,
     alignItems: 'center',
+    paddingVertical: 4,
   },
   switchModeText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#8E95A0',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  switchModeHighlight: {
+    color: '#E2F163',
+    fontWeight: '800',
   },
   verifyContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   verifyIconBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(226, 241, 99, 0.14)',
     borderWidth: 1,
-    borderColor: '#2563EB',
+    borderColor: 'rgba(226, 241, 99, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   verifyTitle: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 10,
+    fontWeight: '900',
+    marginBottom: 8,
   },
   verifyDescription: {
-    color: '#94A3B8',
+    color: '#8E95A0',
     fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
+    lineHeight: 19,
+    marginBottom: 18,
   },
   verifyHighlightEmail: {
-    color: '#60A5FA',
-    fontWeight: '700',
+    color: '#E2F163',
+    fontWeight: '800',
   },
   resendButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 14,
-    marginTop: 8,
+    marginTop: 10,
     alignItems: 'center',
   },
   resendButtonText: {
-    color: '#94A3B8',
-    fontSize: 13,
+    color: '#8E95A0',
+    fontSize: 12.5,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
   successText: {
-    color: '#10B981',
+    color: '#34D399',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 12,
     textAlign: 'center',
+    backgroundColor: 'rgba(52, 211, 153, 0.12)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
 });

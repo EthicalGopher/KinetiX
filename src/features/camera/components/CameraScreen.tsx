@@ -9,21 +9,37 @@ import {
   PanResponder,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera } from 'expo-camera';
-import type { MainTab } from '../../../components/HomeScreen';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
 interface CameraScreenProps {
   onClose: () => void;
   selectedModel: ModelComplexity;
+  exerciseId?: string;
+  exerciseName?: string;
 }
 
-const RAW_HOST = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
-const SERVER_HOST = RAW_HOST.replace(/\/+$/, '');
+export const getPoseHtmlBundle = (exercise: string = 'squats') => {
+  const norm = exercise.toLowerCase();
+  let exerciseMode = 'squats';
+  let exerciseTitle = 'Squats';
 
-export const POSE_HTML_BUNDLE = `
+  if (norm.includes('triangle') || norm === '3') {
+    exerciseMode = 'triangle_pose';
+    exerciseTitle = 'Triangle Pose';
+  } else if (norm.includes('lunge') || norm === '4') {
+    exerciseMode = 'lunge';
+    exerciseTitle = 'Lunges';
+  } else if (norm.includes('crunch') || norm === '5') {
+    exerciseMode = 'crunch';
+    exerciseTitle = 'Crunches';
+  } else if (norm.includes('situp') || norm.includes('sit-up') || norm === '2') {
+    exerciseMode = 'situp';
+    exerciseTitle = 'Sit-ups';
+  }
+
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -81,7 +97,7 @@ export const POSE_HTML_BUNDLE = `
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
       font-variant-numeric: tabular-nums;
       display: flex; flex-direction: column; gap: 5px;
-      min-width: 136px;
+      min-width: 140px;
     }
     @media (orientation: landscape) {
       #hud {
@@ -128,6 +144,7 @@ export const POSE_HTML_BUNDLE = `
       margin-top: 2px; padding: 4px 8px; border-radius: 8px;
       background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);
       font-size: 10px; font-weight: 700; color: #FCA5A5; display: none; text-align: center;
+      max-width: 170px;
     }
   </style>
 
@@ -139,7 +156,7 @@ export const POSE_HTML_BUNDLE = `
     <div id="loader-overlay">
       <div class="spinner" id="loader-spinner"></div>
       <div class="loader-icon" id="loader-icon">⚠️</div>
-      <div class="loader-title">Loading pose model</div>
+      <div class="loader-title">Loading ${exerciseTitle} AI</div>
       <div class="loader-status" id="loader-status-text">Setting things up…</div>
 
       <div class="progress-track">
@@ -158,7 +175,7 @@ export const POSE_HTML_BUNDLE = `
         <span class="hud-label-tag">STATE</span>
         <div id="state-badge" class="state-badge">
           <span id="state-dot" class="state-dot"></span>
-          <span id="state-value" class="state-text">Top</span>
+          <span id="state-value" class="state-text">Ready</span>
         </div>
       </div>
       <div class="hud-row">
@@ -173,6 +190,7 @@ export const POSE_HTML_BUNDLE = `
   </div>
 
   <script>
+    const EXERCISE_MODE = '${exerciseMode}';
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -205,19 +223,13 @@ export const POSE_HTML_BUNDLE = `
       }
     }
 
-    // ---------- Squat state machine ----------
-    const REQUIRED_LANDMARKS = [11, 12, 23, 24, 25, 26, 27, 28];
-    const KNEE_UP_THRESHOLD = 155;
-    const KNEE_BOTTOM_THRESHOLD = 95;
+    // ---------- Geometry & Angle Helpers ----------
+    const REQUIRED_LANDMARKS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     const SMOOTHING_WINDOW = 5;
     const DEBOUNCE_FRAMES = 4;
     const kneeValues = [];
     const visibilityValues = [];
-    let confirmedState = 'TOP';
-    let candidateState = null;
-    let candidateCount = 0;
     let repCount = 0;
-    let reachedBottom = false;
 
     function average(values, value) {
       values.push(value);
@@ -233,16 +245,18 @@ export const POSE_HTML_BUNDLE = `
       return degrees > 180 ? 360 - degrees : degrees;
     }
 
-    function classifyState(knee) {
-      if (confirmedState === 'TOP') return knee >= KNEE_UP_THRESHOLD ? 'TOP' : 'DOWN';
-      if (confirmedState === 'BOTTOM') return knee <= 100 ? 'BOTTOM' : 'DOWN';
-      if (knee <= KNEE_BOTTOM_THRESHOLD) return 'BOTTOM';
-      if (knee >= KNEE_UP_THRESHOLD) return 'TOP';
-      return 'DOWN';
+    function midpoint(a, b) {
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: ((a.z || 0) + (b.z || 0)) / 2 };
     }
 
-    // Returns true the frame a rep is completed (TOP -> DOWN -> BOTTOM -> TOP).
-    function updateState(rawState) {
+    // ---------- State Machine Variables ----------
+    let confirmedState = 'TOP';
+    let candidateState = null;
+    let candidateCount = 0;
+    let reachedApexOrBottom = false;
+    let correctHoldFrames = 0;
+
+    function updateGenericStateMachine(rawState, apexState = 'BOTTOM', startState = 'TOP') {
       if (rawState === confirmedState) {
         candidateState = null;
         candidateCount = 0;
@@ -252,14 +266,14 @@ export const POSE_HTML_BUNDLE = `
       candidateState = rawState;
       if (candidateCount < DEBOUNCE_FRAMES) return false;
 
-      if (candidateState === 'BOTTOM') reachedBottom = true;
+      if (candidateState === apexState) reachedApexOrBottom = true;
       let completedRep = false;
-      if (candidateState === 'TOP' && confirmedState === 'DOWN') {
-        if (reachedBottom) {
+      if (candidateState === startState && confirmedState !== startState) {
+        if (reachedApexOrBottom) {
           repCount += 1;
           completedRep = true;
         }
-        reachedBottom = false;
+        reachedApexOrBottom = false;
       }
       confirmedState = candidateState;
       candidateState = null;
@@ -267,11 +281,14 @@ export const POSE_HTML_BUNDLE = `
       return completedRep;
     }
 
-    // ---------- HUD rendering ----------
+    // ---------- HUD Rendering ----------
     const STATE_STYLE = {
       TOP: { text: 'Standing ▲', color: '#E2F163', bg: 'rgba(226, 241, 99, 0.15)', border: 'rgba(226, 241, 99, 0.35)' },
-      DOWN: { text: 'Squatting ▼', color: '#C8B6FF', bg: 'rgba(200, 182, 255, 0.18)', border: 'rgba(200, 182, 255, 0.4)' },
-      BOTTOM: { text: 'Parallel ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' }
+      DOWN: { text: 'Moving ▼', color: '#C8B6FF', bg: 'rgba(200, 182, 255, 0.18)', border: 'rgba(200, 182, 255, 0.4)' },
+      BOTTOM: { text: 'Target ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' },
+      PERFECT: { text: 'Perfect Hold ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' },
+      ADJUST: { text: 'Adjust Form ⚠️', color: '#FBBF24', bg: 'rgba(251, 191, 36, 0.18)', border: 'rgba(251, 191, 36, 0.4)' },
+      SETUP: { text: 'Setup Stance ▲', color: '#C8B6FF', bg: 'rgba(200, 182, 255, 0.18)', border: 'rgba(200, 182, 255, 0.4)' },
     };
 
     function renderState(state) {
@@ -307,36 +324,214 @@ export const POSE_HTML_BUNDLE = `
         fillEl.style.width = Math.max(4, pct) + '%';
         fillEl.style.backgroundColor = color;
       }
-      if (hintEl) {
-        hintEl.style.display = value < 0.5 ? 'block' : 'none';
+      if (hintEl && value < 0.45) {
+        hintEl.textContent = '⚠️ Step back into full frame';
+        hintEl.style.display = 'block';
+        hintEl.style.color = '#FCA5A5';
       }
     }
 
-    function updateSquatHud(pose) {
-      const visibility = Math.min(...REQUIRED_LANDMARKS.map((index) => pose[index].visibility ?? 1));
-      const smoothVisibility = average(visibilityValues, visibility);
-      renderVisibility(smoothVisibility);
-
-      if (smoothVisibility < 0.5) {
-        candidateState = null;
-        candidateCount = 0;
-        return;
-      }
-
+    // 1. Squats Engine
+    function updateSquatEngine(pose) {
       const leftKnee = angle(pose[23], pose[25], pose[27]);
       const rightKnee = angle(pose[24], pose[26], pose[28]);
       const smoothKnee = average(kneeValues, (leftKnee + rightKnee) / 2);
 
-      const instantState = smoothKnee <= KNEE_BOTTOM_THRESHOLD ? 'BOTTOM' : smoothKnee >= KNEE_UP_THRESHOLD ? 'TOP' : 'DOWN';
-      const completedRep = updateState(classifyState(smoothKnee));
+      const instantState = smoothKnee <= 95 ? 'BOTTOM' : smoothKnee >= 155 ? 'TOP' : 'DOWN';
+      const completedRep = updateGenericStateMachine(instantState, 'BOTTOM', 'TOP');
       renderState(instantState);
+
+      const hintEl = document.getElementById('hud-hint');
+      if (hintEl) {
+        hintEl.style.display = smoothKnee > 115 && smoothKnee < 145 ? 'block' : 'none';
+        hintEl.textContent = 'Squat deeper to parallel';
+        hintEl.style.color = '#C8B6FF';
+      }
 
       if (completedRep && window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount }));
       }
     }
 
-    // ---------- Pose model + camera ----------
+    // 2. Triangle Pose Engine
+    function updateTrianglePoseEngine(pose) {
+      const leftKnee = angle(pose[23], pose[25], pose[27]);
+      const rightKnee = angle(pose[24], pose[26], pose[28]);
+      const leftElbow = angle(pose[11], pose[13], pose[15]);
+      const rightElbow = angle(pose[12], pose[14], pose[16]);
+      const leftShoulder = angle(pose[13], pose[11], pose[23]);
+      const rightShoulder = angle(pose[14], pose[12], pose[24]);
+
+      const topSide = pose[15].y < pose[16].y ? 'left' : 'right';
+      const topWrist = topSide === 'left' ? pose[15] : pose[16];
+      const topShoulderPos = topSide === 'left' ? pose[11] : pose[12];
+      const botShoulderPos = topSide === 'left' ? pose[12] : pose[11];
+      const topArmShoulder = topSide === 'left' ? leftShoulder : rightShoulder;
+      const topArmElbow = topSide === 'left' ? leftElbow : rightElbow;
+      const bottomArmElbow = topSide === 'left' ? rightElbow : leftElbow;
+      const frontKnee = topSide === 'left' ? rightKnee : leftKnee;
+      const backKnee = topSide === 'left' ? leftKnee : rightKnee;
+
+      const shoulderVec = { x: pose[12].x - pose[11].x, y: pose[12].y - pose[11].y };
+      const shoulderTilt = Math.abs(Math.atan2(shoulderVec.y, shoulderVec.x) * 180 / Math.PI);
+      const shoulderZDiff = Math.abs((topShoulderPos.z ?? 0) - (botShoulderPos.z ?? 0));
+
+      const issues = [];
+      if (frontKnee < 155) issues.push('Keep front leg straight (' + Math.round(frontKnee) + '°)');
+      if (backKnee < 155) issues.push('Keep back leg straight (' + Math.round(backKnee) + '°)');
+      if (topArmShoulder < 135) issues.push('Reach top arm straight up');
+      if (topArmElbow < 150) issues.push('Extend top elbow fully');
+      if (bottomArmElbow < 150) issues.push('Extend bottom arm along leg');
+      if (shoulderTilt < 25) issues.push('Hinge deeper laterally from hip');
+      if (shoulderZDiff > 0.35) issues.push('Open chest & stack shoulders');
+
+      const isTopWristUp = topWrist.y < topShoulderPos.y;
+      const hintEl = document.getElementById('hud-hint');
+
+      if (!isTopWristUp) {
+        renderState('SETUP');
+        if (hintEl) {
+          hintEl.textContent = '📐 Reach one arm up & hinge sideways';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#C8B6FF';
+        }
+        correctHoldFrames = 0;
+      } else if (issues.length === 0) {
+        renderState('PERFECT');
+        correctHoldFrames += 1;
+        const totalHoldSecs = (correctHoldFrames / 25).toFixed(1);
+        if (hintEl) {
+          hintEl.textContent = '✨ Perfect Alignment! Hold: ' + totalHoldSecs + 's';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#34D399';
+        }
+        if (correctHoldFrames % 75 === 0) {
+          repCount += 1;
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'SQUAT_REP',
+              repCount: repCount,
+              holdSeconds: Math.floor(correctHoldFrames / 25),
+              poseName: 'Triangle Pose'
+            }));
+          }
+        }
+      } else {
+        renderState('ADJUST');
+        correctHoldFrames = Math.max(0, correctHoldFrames - 2);
+        if (hintEl) {
+          hintEl.textContent = '⚠️ ' + issues[0];
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#FBBF24';
+        }
+      }
+    }
+
+    // 3. Lunges Engine
+    function updateLungeEngine(pose) {
+      const midHipX = (pose[23].x + pose[24].x) / 2;
+      const noseX = pose[0].x;
+      const facingDir = (noseX - midHipX) >= 0 ? 1 : -1;
+      const leftLead = (pose[27].x - midHipX) * facingDir;
+      const rightLead = (pose[28].x - midHipX) * facingDir;
+      const isLeftLead = leftLead >= rightLead;
+
+      const frontKnee = isLeftLead ? angle(pose[23], pose[25], pose[27]) : angle(pose[24], pose[26], pose[28]);
+      const backKnee = isLeftLead ? angle(pose[24], pose[26], pose[28]) : angle(pose[23], pose[25], pose[27]);
+      const smoothFrontKnee = average(kneeValues, frontKnee);
+
+      const shMid = midpoint(pose[11], pose[12]);
+      const hipMid = midpoint(pose[23], pose[24]);
+      const torsoVec = { x: shMid.x - hipMid.x, y: shMid.y - hipMid.y };
+      const torsoAngle = Math.abs(Math.atan2(torsoVec.x, -torsoVec.y) * 180 / Math.PI);
+
+      const instantState = (smoothFrontKnee <= 100 && backKnee <= 115) ? 'BOTTOM' : smoothFrontKnee >= 160 ? 'TOP' : 'DOWN';
+      const completedRep = updateGenericStateMachine(instantState, 'BOTTOM', 'TOP');
+      renderState(instantState);
+
+      const hintEl = document.getElementById('hud-hint');
+      if (hintEl) {
+        if (torsoAngle > 22) {
+          hintEl.textContent = '⚠️ Keep torso & chest upright';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#FBBF24';
+        } else if (smoothFrontKnee > 105 && instantState === 'DOWN') {
+          hintEl.textContent = 'Bend front knee to 90°';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#C8B6FF';
+        } else {
+          hintEl.style.display = 'none';
+        }
+      }
+
+      if (completedRep && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount, poseName: 'Lunges' }));
+      }
+    }
+
+    // 4. Crunches Engine
+    function updateCrunchEngine(pose) {
+      const shMid = midpoint(pose[11], pose[12]);
+      const hipMid = midpoint(pose[23], pose[24]);
+      const dx = Math.abs(shMid.x - hipMid.x);
+      const dy = Math.abs(shMid.y - hipMid.y);
+      const torsoAngleToFloor = Math.atan2(dy, dx) * 180 / Math.PI;
+      const smoothTorso = average(kneeValues, torsoAngleToFloor);
+
+      const instantState = smoothTorso >= 22 ? 'BOTTOM' : smoothTorso <= 8 ? 'TOP' : 'DOWN';
+      const completedRep = updateGenericStateMachine(instantState, 'BOTTOM', 'TOP');
+      renderState(instantState === 'BOTTOM' ? 'BOTTOM' : instantState === 'TOP' ? 'TOP' : 'DOWN');
+
+      const hintEl = document.getElementById('hud-hint');
+      if (hintEl) {
+        if (smoothTorso > 42) {
+          hintEl.textContent = '⚠️ Lift shoulder blades only (don’t sit up)';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#FBBF24';
+        } else if (smoothTorso < 18 && instantState === 'DOWN') {
+          hintEl.textContent = 'Crunch up & contract abs';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#C8B6FF';
+        } else {
+          hintEl.style.display = 'none';
+        }
+      }
+
+      if (completedRep && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount, poseName: 'Crunches' }));
+      }
+    }
+
+    // 5. Sit-ups Engine
+    function updateSitupEngine(pose) {
+      const shMid = midpoint(pose[11], pose[12]);
+      const hipMid = midpoint(pose[23], pose[24]);
+      const dx = Math.abs(shMid.x - hipMid.x);
+      const dy = Math.abs(shMid.y - hipMid.y);
+      const torsoAngleToFloor = Math.atan2(dy, dx) * 180 / Math.PI;
+      const smoothTorso = average(kneeValues, torsoAngleToFloor);
+
+      const instantState = smoothTorso >= 60 ? 'BOTTOM' : smoothTorso <= 20 ? 'TOP' : 'DOWN';
+      const completedRep = updateGenericStateMachine(instantState, 'BOTTOM', 'TOP');
+      renderState(instantState === 'BOTTOM' ? 'BOTTOM' : instantState === 'TOP' ? 'TOP' : 'DOWN');
+
+      const hintEl = document.getElementById('hud-hint');
+      if (hintEl) {
+        if (instantState === 'DOWN' && smoothTorso < 50) {
+          hintEl.textContent = 'Sit all the way up to 60°';
+          hintEl.style.display = 'block';
+          hintEl.style.color = '#C8B6FF';
+        } else {
+          hintEl.style.display = 'none';
+        }
+      }
+
+      if (completedRep && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SQUAT_REP', repCount, poseName: 'Sit-ups' }));
+      }
+    }
+
+    // ---------- Pose Model + Camera ----------
     async function initApp() {
       try {
         setProgress(40, 'Preparing pose tracker…');
@@ -408,7 +603,21 @@ export const POSE_HTML_BUNDLE = `
           const landmarks = results.poseLandmarks;
 
           if (landmarks && landmarks.length > 0) {
-            updateSquatHud(landmarks);
+            const visibility = Math.min(...REQUIRED_LANDMARKS.map((index) => landmarks[index]?.visibility ?? 1));
+            const smoothVisibility = average(visibilityValues, visibility);
+            renderVisibility(smoothVisibility);
+
+            if (EXERCISE_MODE === 'triangle_pose') {
+              updateTrianglePoseEngine(landmarks);
+            } else if (EXERCISE_MODE === 'lunge') {
+              updateLungeEngine(landmarks);
+            } else if (EXERCISE_MODE === 'crunch') {
+              updateCrunchEngine(landmarks);
+            } else if (EXERCISE_MODE === 'situp') {
+              updateSitupEngine(landmarks);
+            } else {
+              updateSquatEngine(landmarks);
+            }
 
             ctx.lineWidth = 4;
             ctx.strokeStyle = '#6366F1';
@@ -463,90 +672,84 @@ export const POSE_HTML_BUNDLE = `
             return;
           }
 
-          navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
-            currentStream = stream;
-            video.srcObject = stream;
-            video.onloadedmetadata = resizeCanvas;
-            video.play().catch((err) => console.warn('Camera playback error:', err));
-            setProgress(95, 'Finishing setup…');
-
-            async function sendFrame() {
-              if (video.readyState >= 2 && poseInstance) {
-                await poseInstance.send({ image: video });
-              }
-              requestAnimationFrame(sendFrame);
-            }
-            sendFrame();
-          }).catch((err) => {
-            setProgress(currentProgress, 'Camera access error: ' + err.message, true);
-            console.error(err);
-          });
+          navigator.mediaDevices.getUserMedia(constraints)
+            .then((stream) => {
+              currentStream = stream;
+              video.srcObject = stream;
+              video.onloadedmetadata = () => {
+                video.play();
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                processFrame();
+              };
+            })
+            .catch((err) => {
+              setProgress(currentProgress, 'Failed to start camera: ' + err.message, true);
+            });
         }
 
-        window.toggleFacingMode = function () {
+        function processFrame() {
+          if (video.paused || video.ended) return;
+          poseInstance.send({ image: video })
+            .then(() => {
+              if ('requestVideoFrameCallback' in video) {
+                video.requestVideoFrameCallback(processFrame);
+              } else {
+                requestAnimationFrame(processFrame);
+              }
+            })
+            .catch(() => {
+              requestAnimationFrame(processFrame);
+            });
+        }
+
+        window.toggleFacingMode = () => {
           currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
           startCamera(currentFacingMode);
         };
 
-        window.setInitialComplexity = function (level) {
-          selectedComplexity = level;
+        window.setInitialComplexity = (val) => {
+          selectedComplexity = val;
           if (poseInstance) {
-            poseInstance.setOptions({
-              modelComplexity: level,
-              smoothLandmarks: true,
-              minDetectionConfidence: 0.4,
-              minTrackingConfidence: 0.4
-            });
+            poseInstance.setOptions({ modelComplexity: val });
           }
         };
 
         startCamera(currentFacingMode);
+
       } catch (err) {
-        setProgress(currentProgress, 'Something went wrong: ' + (err && err.message ? err.message : String(err)), true);
-        console.error(err);
+        setProgress(currentProgress, err.message, true);
       }
     }
 
-    function resizeCanvas() {
-      if (video && video.videoWidth && video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-      } else {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      }
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initApp);
-    } else {
-      initApp();
-    }
+    window.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
 </html>
-`;
+  `;
+};
 
-export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedModel }) => {
-  const [poseStatus, setPoseStatus] = useState<string>('Connecting to Backend Server...');
+export const POSE_HTML_BUNDLE = getPoseHtmlBundle('squats');
+
+export const CameraScreen: React.FC<CameraScreenProps> = ({
+  onClose,
+  selectedModel,
+  exerciseId = '1',
+  exerciseName = 'Squats',
+}) => {
+  const [poseStatus, setPoseStatus] = useState<string>('Initializing Pose Engine…');
   const [poseDetected, setPoseDetected] = useState<boolean>(false);
-  const webViewRef = useRef<WebView | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(true);
-  const line1Rotate = useRef(new Animated.Value(1)).current;
-  const line2Scale = useRef(new Animated.Value(0)).current;
-  const line3Rotate = useRef(new Animated.Value(1)).current;
-  const menuItemsAnim = useRef(
-    [0, 1].map(() => new Animated.Value(1))
-  ).current;
-
-  const pan = useRef(new Animated.ValueXY({ x: 16, y: 40 })).current;
+  const webViewRef = useRef<WebView>(null);
+  const pan = useRef(new Animated.ValueXY({ x: 20, y: 40 })).current;
+  const line1Rotate = useRef(new Animated.Value(0)).current;
+  const line2Scale = useRef(new Animated.Value(1)).current;
+  const line3Rotate = useRef(new Animated.Value(0)).current;
+  const menuItemsAnim = useRef([new Animated.Value(0), new Animated.Value(0)]).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
       },
@@ -612,18 +815,6 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
     }
   };
 
-  const getModelLabel = () => {
-    switch (selectedModel) {
-      case 'light':
-        return '⚡ Light Model';
-      case 'high':
-        return '🔥 High Model';
-      case 'medium':
-      default:
-        return '🎯 Medium Model';
-    }
-  };
-
   const toggleMenu = () => {
     const nextOpen = !isMenuOpen;
     setIsMenuOpen(nextOpen);
@@ -660,6 +851,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
     ]).start();
   };
 
+  const htmlBundle = getPoseHtmlBundle(exerciseName || exerciseId || 'squats');
+
   return (
     <View style={styles.container}>
       <StatusBar hidden />
@@ -667,7 +860,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
       <WebView
         ref={webViewRef}
         source={{
-          html: POSE_HTML_BUNDLE,
+          html: htmlBundle,
           baseUrl: 'https://cdn.jsdelivr.net',
         }}
         userAgent="MobilePoseApp/1.0"
@@ -684,7 +877,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ onClose, selectedMod
         originWhitelist={['*']}
         onMessage={handleMessage}
         onLoadEnd={handleWebViewLoad}
-       />
+      />
 
       {/* Draggable Hamburger Radial Menu */}
       <Animated.View

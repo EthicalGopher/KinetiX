@@ -38,6 +38,8 @@ export default function AppShell() {
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [incomingInvite, setIncomingInvite] = useState<BattleInvite | null>(null);
 
+  const [soloExerciseId, setSoloExerciseId] = useState<string>('1');
+  const [soloExerciseName, setSoloExerciseName] = useState<string>('Squats');
   const { activeTab, setActiveTab, setUser } = useUserStore();
 
   // Listen for incoming 1v1 battle invites from friends
@@ -81,11 +83,17 @@ export default function AppShell() {
   useEffect(() => {
     async function updateOrientation() {
       try {
-        if (ScreenOrientation && ScreenOrientation.lockAsync) {
+        if (ScreenOrientation) {
           if (isFullscreen) {
-            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+            if (ScreenOrientation.unlockAsync) {
+              await ScreenOrientation.unlockAsync();
+            } else if (ScreenOrientation.lockAsync) {
+              await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
+            }
           } else {
-            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+            if (ScreenOrientation.lockAsync) {
+              await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+            }
           }
         }
       } catch (e) {
@@ -167,6 +175,8 @@ export default function AppShell() {
         ) : isFullscreen ? (
           <CameraScreen
             selectedModel={selectedModel}
+            exerciseId={soloExerciseId}
+            exerciseName={soloExerciseName}
             onClose={() => {
               setIsFullscreen(false);
               setActiveTab('home');
@@ -177,7 +187,9 @@ export default function AppShell() {
             <HomeScreen
               activeTab={activeTab as MainTab}
               onTabChange={setActiveTab}
-              onOpenCamera={() => {
+              onOpenCamera={(exerciseId?: string, exerciseName?: string) => {
+                if (exerciseId) setSoloExerciseId(exerciseId);
+                if (exerciseName) setSoloExerciseName(exerciseName);
                 setIsFullscreen(true);
               }}
               onOpenMatchCamera={(opponent: string, mode: 'faceoff' | 'quickjoin', exerciseId?: string) => {
