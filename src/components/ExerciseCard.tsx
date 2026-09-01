@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ExerciseIcon } from './ExerciseIcon';
 
 interface ExerciseCardProps {
   item: {
@@ -8,6 +9,7 @@ interface ExerciseCardProps {
     icon: string;
     category?: string;
     bgGradient?: string;
+    image_url?: string;
   };
   queueCount: number;
   onPress: () => void;
@@ -24,7 +26,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({ item, queueCount, on
       </View>
 
       <View style={styles.gridIconCenter}>
-        <Text style={{ fontSize: 36 }}>{item.icon}</Text>
+        <ExerciseIcon imageUrl={item.image_url} icon={item.icon} size={48} fontSize={36} />
       </View>
 
       <View style={styles.gridCardFooter}>
@@ -74,6 +76,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: 86,
+    backgroundColor: 'transparent',
   },
   gridCardFooter: {
     marginTop: 4,

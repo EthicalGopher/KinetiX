@@ -31,6 +31,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
+import { ExerciseIcon } from '../components/ExerciseIcon';
 import { useUserStore } from '../store/userStore';
 import { fetchFriends, FriendshipItem } from '../utils/friendService';
 
@@ -42,6 +43,7 @@ export interface ExerciseItem {
   isFavorite?: boolean;
   bgGradient?: string;
   description?: string;
+  image_url?: string;
 }
 
 interface HomeFeedScreenProps {
@@ -273,7 +275,12 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
 
           <View style={styles.heroLimeRight}>
             <View style={styles.athleteVisualCircle}>
-              <Text style={styles.athleteEmoji}>{activeExercise.icon || '🏋️‍♂️'}</Text>
+              <ExerciseIcon
+                imageUrl={activeExercise.image_url}
+                icon={activeExercise.icon || '🏋️‍♂️'}
+                size={54}
+                fontSize={32}
+              />
             </View>
           </View>
         </View>
@@ -688,7 +695,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(17, 20, 26, 0.08)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },

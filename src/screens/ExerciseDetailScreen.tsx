@@ -36,6 +36,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
+import { ExerciseIcon } from '../components/ExerciseIcon';
 import { Header } from '../components/Header';
 import { useUserStore } from '../store/userStore';
 import {
@@ -62,6 +63,7 @@ export interface ExerciseItem {
   description?: string;
   isFavorite?: boolean;
   bgGradient?: string;
+  image_url?: string;
 }
 
 interface ExerciseDetailScreenProps {
@@ -303,7 +305,13 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
       <View style={styles.detailBannerCard}>
         <View style={styles.bannerTopRow}>
           <View style={styles.ratingBadge}>
-            <Text style={{ fontSize: 16, marginRight: 6 }}>{exercise.icon}</Text>
+            <ExerciseIcon
+              imageUrl={exercise.image_url}
+              icon={exercise.icon}
+              size={22}
+              fontSize={16}
+              containerStyle={{ marginRight: 6 }}
+            />
             <Text style={styles.ratingLabel}>{exercise.name} Score</Text>
             <View style={styles.ratingNumBox}>
               <Text style={styles.ratingNumText}>{exercisePoints} PTS</Text>
@@ -592,7 +600,13 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
               </View>
             ) : leaderboard.length === 0 ? (
               <View style={styles.emptyLeaderboardBox}>
-                <Text style={{ fontSize: 32 }}>{exercise.icon}</Text>
+                <ExerciseIcon
+                  imageUrl={exercise.image_url}
+                  icon={exercise.icon}
+                  size={54}
+                  fontSize={32}
+                  containerStyle={{ marginBottom: 10 }}
+                />
                 <Text style={styles.emptyLeaderboardTitle}>
                   No {exercise.name} Rankings Yet
                 </Text>

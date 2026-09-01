@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { ChevronRight, Dumbbell, Flame, Play, Sparkles, Swords, Zap } from 'lucide-react-native';
 import { Header } from '../components/Header';
+import { ExerciseIcon } from '../components/ExerciseIcon';
 import {
   DEFAULT_EXERCISES,
   fetchExercisesFromSupabase,
@@ -180,7 +181,12 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
                 {/* Center Body with Athletic Visual & Category Tags */}
                 <View style={styles.cardBodyRow}>
                   <View style={styles.athleteVisualCircle}>
-                    <Text style={styles.athleteEmoji}>{exercise.icon}</Text>
+                    <ExerciseIcon
+                      imageUrl={exercise.image_url}
+                      icon={exercise.icon}
+                      size={52}
+                      fontSize={30}
+                    />
                   </View>
 
                   <View style={styles.cardTagsWrapper}>
@@ -357,7 +363,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(17, 20, 26, 0.08)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },

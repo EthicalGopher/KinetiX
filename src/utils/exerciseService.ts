@@ -13,6 +13,7 @@ export interface ExerciseItem {
   reps_target?: number;
   difficulty?: string;
   bg_theme?: string;
+  image_url?: string;
 }
 
 export const DEFAULT_EXERCISES: ExerciseItem[] = [
@@ -115,6 +116,7 @@ export async function fetchExercisesFromSupabase(): Promise<ExerciseItem[]> {
         reps_target: row.reps_target || 15,
         difficulty: row.difficulty || 'Intermediate',
         bg_theme: row.bg_theme || row.bg_gradient || '#C8B6FF',
+        image_url: row.image_url || undefined,
       }));
     }
 
