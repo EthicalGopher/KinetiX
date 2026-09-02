@@ -7,10 +7,19 @@ import {
   StatusBar,
   Animated,
   PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Camera } from 'expo-camera';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import {
+  Dumbbell,
+  LogOut,
+  RotateCcw,
+  Smartphone,
+  SwitchCamera,
+  Flame,
+} from 'lucide-react-native';
 
 export type ModelComplexity = 'light' | 'medium' | 'high';
 
@@ -231,6 +240,19 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
     const kneeValues = [];
     const visibilityValues = [];
     let repCount = 0;
+    let lastVisMsgTime = 0;
+
+    function resetInternalScore() {
+      repCount = 0;
+      confirmedState = 'TOP';
+      candidateState = null;
+      candidateCount = 0;
+      reachedApexOrBottom = false;
+      correctHoldFrames = 0;
+      kneeValues.length = 0;
+      visibilityValues.length = 0;
+      renderState('TOP');
+    }
 
     function average(values, value) {
       values.push(value);
@@ -608,6 +630,25 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
             const smoothVisibility = average(visibilityValues, visibility);
             renderVisibility(smoothVisibility);
 
+            if (window.ReactNativeWebView && Date.now() - lastVisMsgTime > 200) {
+              lastVisMsgTime = Date.now();
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'POSE_VISIBILITY',
+                visibility: smoothVisibility
+              }));
+            }
+          } else {
+            renderVisibility(0);
+            if (window.ReactNativeWebView && Date.now() - lastVisMsgTime > 200) {
+              lastVisMsgTime = Date.now();
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'POSE_VISIBILITY',
+                visibility: 0
+              }));
+            }
+          }
+
+          if (landmarks && landmarks.length > 0) {
             if (EXERCISE_MODE === 'triangle_pose') {
               updateTrianglePoseEngine(landmarks);
             } else if (EXERCISE_MODE === 'lunge') {
@@ -685,15 +726,16 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
               };
             })
             .catch((err) => {
-              setProgress(currentProgress, 'Failed to start camera: ' + err.message, true);
+              setProgress(currentProgress, 'Camera permission denied or camera unavailable', true);
             });
         }
 
         function processFrame() {
-          if (video.paused || video.ended) return;
+          if (!video || video.paused || video.ended || !poseInstance) return;
+
           poseInstance.send({ image: video })
             .then(() => {
-              if ('requestVideoFrameCallback' in video) {
+              if (window.requestVideoFrameCallback) {
                 video.requestVideoFrameCallback(processFrame);
               } else {
                 requestAnimationFrame(processFrame);
@@ -714,6 +756,10 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
           if (poseInstance) {
             poseInstance.setOptions({ modelComplexity: val });
           }
+        };
+
+        window.resetSessionScore = () => {
+          resetInternalScore();
         };
 
         startCamera(currentFacingMode);
@@ -740,35 +786,19 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 }) => {
   const [poseStatus, setPoseStatus] = useState<string>('Initializing Pose Engine…');
   const [poseDetected, setPoseDetected] = useState<boolean>(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [repCount, setRepCount] = useState<number>(0);
 
   const webViewRef = useRef<WebView>(null);
-  const pan = useRef(new Animated.ValueXY({ x: 20, y: 40 })).current;
-  const line1Rotate = useRef(new Animated.Value(0)).current;
-  const line2Scale = useRef(new Animated.Value(1)).current;
-  const line3Rotate = useRef(new Animated.Value(0)).current;
-  const menuItemsAnim = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
+  const repScaleAnim = useRef(new Animated.Value(1)).current;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
-        });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
-      },
-    })
-  ).current;
+  const isStepCount =
+    exerciseName.toLowerCase().includes('lunge') ||
+    exerciseId === '4';
+  const isHoldPose =
+    exerciseName.toLowerCase().includes('triangle') ||
+    exerciseId === '3';
+
+  const countLabel = isHoldPose ? 'POINTS' : isStepCount ? 'STEPS' : 'REPS';
 
   useEffect(() => {
     async function requestPermissions() {
@@ -785,10 +815,23 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
   const numericComplexity = selectedModel === 'light' ? 0 : selectedModel === 'high' ? 2 : 1;
 
+  const triggerRepBump = () => {
+    repScaleAnim.setValue(1.3);
+    Animated.spring(repScaleAnim, {
+      toValue: 1,
+      friction: 4,
+      tension: 140,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const handleMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'POSE_DETECTED') {
+      if (data.type === 'SQUAT_REP' && typeof data.repCount === 'number') {
+        setRepCount(data.repCount);
+        triggerRepBump();
+      } else if (data.type === 'POSE_DETECTED') {
         const label =
           selectedModel === 'light'
             ? 'Light Model'
@@ -826,6 +869,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     }
   };
 
+  const handleRestartSession = () => {
+    setRepCount(0);
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript('window.resetSessionScore && window.resetSessionScore(); true;');
+    }
+  };
+
   const handleClose = async () => {
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
@@ -837,47 +887,6 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`window.setInitialComplexity(${numericComplexity}); true;`);
     }
-  };
-
-  const toggleMenu = () => {
-    const nextOpen = !isMenuOpen;
-    setIsMenuOpen(nextOpen);
-
-    Animated.parallel([
-      Animated.timing(line1Rotate, {
-        toValue: nextOpen ? 1 : 0,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-      Animated.timing(line2Scale, {
-        toValue: nextOpen ? 0 : 1,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-      Animated.timing(line3Rotate, {
-        toValue: nextOpen ? 1 : 0,
-        duration: 200,
-        useNativeDriver: false,
-      }),
-    ]).start();
-
-    Animated.stagger(80, [
-      Animated.spring(menuItemsAnim[0], {
-        toValue: nextOpen ? 1 : 0,
-        friction: 8,
-        useNativeDriver: false,
-      }),
-      Animated.spring(menuItemsAnim[1], {
-        toValue: nextOpen ? 1 : 0,
-        friction: 8,
-        useNativeDriver: false,
-      }),
-      Animated.spring(menuItemsAnim[2], {
-        toValue: nextOpen ? 1 : 0,
-        friction: 8,
-        useNativeDriver: false,
-      }),
-    ]).start();
   };
 
   const htmlBundle = getPoseHtmlBundle(exerciseName || exerciseId || 'squats');
@@ -908,137 +917,155 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         onLoadEnd={handleWebViewLoad}
       />
 
-      {/* Draggable Hamburger Radial Menu */}
-      <Animated.View
-        style={[styles.menuContainer, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]}
-        {...panResponder.panHandlers}
-      >
-        {menuItemsAnim.map((anim, i) => {
-          const itemConfigs = [
-            { icon: '✕', color: '#EF4444', label: 'Close', onPress: handleClose },
-            { icon: '🔄', color: '#3B82F6', label: 'Flip', onPress: handleToggleFlip },
-            { icon: '📱', color: '#10B981', label: 'Rotate', onPress: handleToggleOrientation },
-          ];
-          const pos = [
-            { x: 80, y: -90 },
-            { x: 145, y: -45 },
-            { x: 145, y: 35 },
-          ];
-          const cfg = itemConfigs[i];
-          const position = pos[i];
-          const translateX = anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, position.x - 40],
-          });
-          const translateY = anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, position.y],
-          });
-          const itemScale = anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, 1],
-          });
-          return (
-            <Animated.View
-              key={cfg.label}
-              style={[
-                styles.menuItem,
-                {
-                  backgroundColor: cfg.color,
-                  opacity: anim,
-                  transform: [{ translateX }, { translateY }, { scale: itemScale }],
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.menuItemInner}
-                activeOpacity={0.85}
-                onPress={cfg.onPress ? cfg.onPress : undefined}
-              >
-                <Text style={styles.menuItemText}>{cfg.icon}</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          );
-        })}
+      {/* Top HUD Header: Solo Exercise Name & Rep / Step Counter */}
+      <View style={styles.topHudContainer} pointerEvents="none">
+        <View style={styles.exerciseBadgePill}>
+          <Flame size={14} color="#E2F163" style={{ marginRight: 5 }} />
+          <Text style={styles.exerciseBadgeText}>{exerciseName.toUpperCase()} SOLO</Text>
+        </View>
 
-        {/* Hamburger Toggle Button */}
-        <TouchableOpacity
-          style={styles.hamburgerBtn}
-          activeOpacity={0.85}
-          onPress={toggleMenu}
-        >
-          <Animated.View
+        {/* Solo Rep / Step Score Badge */}
+        <View style={styles.scoreBadgePill}>
+          <Text style={styles.scoreBadgeLabel}>{countLabel}</Text>
+          <Animated.Text
             style={[
-              styles.hamburgerLine,
-              {
-                top: '50%',
-                left: '50%',
-                marginLeft: -12.5,
-                marginTop: -1.5,
-                transform: [
-                  {
-                    rotate: line1Rotate.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '45deg'],
-                    }),
-                  },
-                  {
-                    translateY: line1Rotate.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-8, 0],
-                    }),
-                  },
-                ],
-              },
+              styles.scoreBadgeNumber,
+              { transform: [{ scale: repScaleAnim }] },
             ]}
-          />
-          <Animated.View
-            style={[
-              styles.hamburgerLine,
-              {
-                top: '50%',
-                left: '50%',
-                marginLeft: -12.5,
-                marginTop: -1.5,
-                transform: [
-                  {
-                    scaleX: line2Scale.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.1, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.hamburgerLine,
-              {
-                top: '50%',
-                left: '50%',
-                marginLeft: -12.5,
-                marginTop: -1.5,
-                transform: [
-                  {
-                    rotate: line3Rotate.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '-45deg'],
-                    }),
-                  },
-                  {
-                    translateY: line3Rotate.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [8, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        </TouchableOpacity>
-      </Animated.View>
+          >
+            {repCount}
+          </Animated.Text>
+        </View>
+      </View>
+
+      {/* Single Draggable Floating Actions Widget */}
+      <SoloDraggableActionsWidget
+        onLeave={handleClose}
+        onFlipCamera={handleToggleFlip}
+        onToggleOrientation={handleToggleOrientation}
+        onReset={handleRestartSession}
+      />
     </View>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Solo Mode Draggable Actions Floating Widget
+// ---------------------------------------------------------------------------
+interface SoloDraggableWidgetProps {
+  onLeave: () => void;
+  onFlipCamera: () => void;
+  onToggleOrientation: () => void;
+  onReset: () => void;
+}
+
+const SoloDraggableActionsWidget: React.FC<SoloDraggableWidgetProps> = ({
+  onLeave,
+  onFlipCamera,
+  onToggleOrientation,
+  onReset,
+}) => {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isLandscape = windowWidth > windowHeight;
+
+  const defaultY = isLandscape
+    ? Math.max(12, windowHeight - 64)
+    : Math.max(12, windowHeight - 120);
+  const defaultX = isLandscape
+    ? Math.max(12, (windowWidth - 240) / 2)
+    : 16;
+
+  const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Keep widget in visible bounds on orientation change
+  useEffect(() => {
+    pan.setValue({ x: defaultX, y: defaultY });
+  }, [windowWidth, windowHeight, isLandscape, defaultX, defaultY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value || 0,
+          y: (pan.y as any)._value || 0,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.draggableContainer,
+        {
+          transform: [{ translateX: pan.x }, { translateY: pan.y }],
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <View style={styles.widgetPillBox}>
+        {/* Dumbbell Icon Floating Handle & Toggle */}
+        <TouchableOpacity
+          style={styles.dumbbellHandleBtn}
+          activeOpacity={0.8}
+          onPress={() => setIsExpanded(!isExpanded)}
+        >
+          <Dumbbell size={18} color="#11141A" strokeWidth={2.5} />
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.actionButtonsRow}>
+            {/* 1. Leave Solo Practice */}
+            <TouchableOpacity
+              style={[styles.widgetActionBtn, styles.leaveActionBtn]}
+              activeOpacity={0.75}
+              onPress={onLeave}
+            >
+              <LogOut size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            {/* 2. Flip Camera */}
+            <TouchableOpacity
+              style={styles.widgetActionBtn}
+              activeOpacity={0.75}
+              onPress={onFlipCamera}
+            >
+              <SwitchCamera size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 3. Rotate Orientation (Portrait / Landscape) */}
+            <TouchableOpacity
+              style={styles.widgetActionBtn}
+              activeOpacity={0.75}
+              onPress={onToggleOrientation}
+            >
+              <Smartphone size={16} color="#11141A" />
+            </TouchableOpacity>
+
+            {/* 4. Reset Count */}
+            <TouchableOpacity
+              style={[styles.widgetActionBtn, styles.resetActionBtn]}
+              activeOpacity={0.75}
+              onPress={onReset}
+            >
+              <RotateCcw size={16} color="#11141A" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </Animated.View>
   );
 };
 
@@ -1047,51 +1074,108 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f172a',
   },
-  menuContainer: {
+  topHudContainer: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 80,
+  },
+  exerciseBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  exerciseBadgeText: {
+    color: '#E2F163',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  scoreBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1.5,
+    borderColor: '#E2F163',
+    gap: 8,
+  },
+  scoreBadgeLabel: {
+    color: '#8E95A0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  scoreBadgeNumber: {
+    color: '#E2F163',
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+  draggableContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+    zIndex: 9999,
+    elevation: 25,
   },
-  menuItem: {
-    position: 'absolute',
-    top: 0,
-    left: -40,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  widgetPillBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuItemInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuItemText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 26,
-  },
-  hamburgerBtn: {
-    position: 'absolute',
-    zIndex: 10,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1E293B',
-    alignItems: 'center',
-    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    gap: 6,
   },
-  hamburgerLine: {
-    position: 'absolute',
-    width: 25,
-    height: 3,
-    backgroundColor: '#596778',
+  dumbbellHandleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E2F163',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  widgetActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaveActionBtn: {
+    backgroundColor: '#EF4444',
+  },
+  resetActionBtn: {
+    backgroundColor: '#E2F163',
   },
 });

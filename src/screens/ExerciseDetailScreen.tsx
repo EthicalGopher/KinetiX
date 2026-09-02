@@ -78,6 +78,7 @@ interface ExerciseDetailScreenProps {
     exerciseId: string,
     customRoomId?: string
   ) => void;
+  onOpenCamera?: (exerciseId?: string, exerciseName?: string) => void;
 }
 
 export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
@@ -87,6 +88,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
   onJoinQueue,
   onDetailTabChange,
   onStartCustomMatch,
+  onOpenCamera,
 }) => {
   const { profile, user, refreshProfile } = useUserStore();
   const [exerciseStats, setExerciseStats] = useState<UserExerciseStats | null>(null);
@@ -456,12 +458,23 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             {/* QUEUE CARDS IN REFERENCE WORKOUT PLAN STYLE */}
             {[
               {
+                id: 'solo_practice',
+                title: `${exercise.name} Solo Practice`,
+                description: `On-device AI pose tracking with real-time joint feedback & form coaching`,
+                icon: '🎯',
+                actionText: 'START',
+                isFriendQueue: false,
+                isSoloMode: true,
+                bgTheme: 'dark',
+              },
+              {
                 id: 'faceoff',
                 title: `${exercise.name} Faceoff (1v1)`,
                 description: `Live video duel with camera feed and AI parallel depth rep counting`,
                 icon: '⚔️',
                 actionText: 'PLAY',
                 isFriendQueue: false,
+                isSoloMode: false,
                 bgTheme: 'dark',
               },
               {
@@ -471,6 +484,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 icon: '⚡',
                 actionText: 'PLAY',
                 isFriendQueue: false,
+                isSoloMode: false,
                 bgTheme: 'dark',
               },
               {
@@ -480,6 +494,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 icon: '👥',
                 actionText: 'PLAY',
                 isFriendQueue: true,
+                isSoloMode: false,
                 bgTheme: 'dark',
               },
             ].map((queue) => {
@@ -506,14 +521,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                       >
                         {queue.title}
                       </Text>
-                      <View
-                        style={[
-                          styles.queueBadgePill,
-                          isLavender && styles.queueBadgePillLavender,
-                        ]}
-                      >
-                       
-                      </View>
+                      {queue.isSoloMode && (
+                        <View style={styles.soloBadgePill}>
+                          <Text style={styles.soloBadgePillText}>SOLO</Text>
+                        </View>
+                      )}
                     </View>
                     <Text
                       style={[
@@ -528,11 +540,16 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.joinButton,
+                      queue.isSoloMode && styles.soloJoinButton,
                       isLavender && styles.joinButtonLavender,
                     ]}
                     activeOpacity={0.85}
                     onPress={() => {
-                      if (queue.isFriendQueue) {
+                      if (queue.isSoloMode) {
+                        if (onOpenCamera) {
+                          onOpenCamera(exercise.id, exercise.name);
+                        }
+                      } else if (queue.isFriendQueue) {
                         setShowFriendChallengeModal(true);
                         loadFriendsList();
                       } else {
@@ -543,6 +560,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                     <Text
                       style={[
                         styles.joinButtonText,
+                        queue.isSoloMode && styles.soloJoinButtonText,
                         isLavender && styles.joinButtonTextLavender,
                       ]}
                     >
@@ -1100,6 +1118,20 @@ const styles = StyleSheet.create({
   },
   queueBadgePillText: { color: '#E2F163', fontSize: 9, fontWeight: '800' },
   queueBadgePillTextLavender: { color: '#11141A' },
+  soloBadgePill: {
+    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 241, 99, 0.4)',
+  },
+  soloBadgePillText: {
+    color: '#E2F163',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   queueDescText: { color: '#9CA3AF', fontSize: 11, marginTop: 4, lineHeight: 15 },
   queueDescTextLavender: { color: '#374151' },
   joinButton: {
@@ -1108,10 +1140,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
+  soloJoinButton: {
+    backgroundColor: '#E2F163',
+  },
   joinButtonLavender: {
     backgroundColor: '#11141A',
   },
   joinButtonText: { color: '#11141A', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  soloJoinButtonText: { color: '#11141A' },
   joinButtonTextLavender: { color: '#FFFFFF' },
   leaderboardContainer: { marginTop: 14 },
   myRankCard: {

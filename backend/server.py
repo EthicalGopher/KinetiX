@@ -137,56 +137,121 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"\nError processing frame: {e}")
 
-# ============= MATCHMAKING SYSTEM =============
+# ============= MATCHMAKING & CONNECTION SYSTEM =============
+
+class ConnectionManager:
+    def __init__(self):
+        # user_id -> WebSocket
+        self.active_connections: dict[str, WebSocket] = {}
+
+    def register(self, user_id: str, ws: WebSocket):
+        self.active_connections[user_id] = ws
+
+    def unregister(self, user_id: str):
+        self.active_connections.pop(user_id, None)
+
+    def get(self, user_id: str) -> WebSocket | None:
+        return self.active_connections.get(user_id)
+
 
 class MatchmakingManager:
-    def __init__(self):
-        self.queues: dict[str, list] = {}
+    def __init__(self, connection_mgr: ConnectionManager):
+        self.connection_mgr = connection_mgr
+        # exercise_id -> list of user_ids
+        self.queues: dict[str, list[str]] = {}
+        # match_id -> match state dict
         self.matches: dict[str, dict] = {}
-        self.online_users: set = set()
+        # user_id -> match_id
+        self.user_to_match: dict[str, str] = {}
+        # Track presence sessions separately from match participants
+        self.presence_users: set[str] = set()
         self.exercise_counts: dict[str, int] = {}
 
-    def join_queue(self, ws, user_id, exercise_id):
-        self.online_users.add(user_id)
+    def add_presence(self, user_id: str):
+        self.presence_users.add(user_id)
+
+    def remove_presence(self, user_id: str):
+        self.presence_users.discard(user_id)
+
+    def join_queue(self, user_id: str, exercise_id: str):
         queue = self.queues.setdefault(exercise_id, [])
-        queue.append({"ws": ws, "user_id": user_id})
+        if user_id not in queue:
+            queue.append(user_id)
         self.exercise_counts[exercise_id] = len(queue)
-        print(f"👤 {user_id} joined queue for {exercise_id} (count: {len(queue)})")
+        print(f"👤 {user_id} joined queue for {exercise_id} (queue size: {len(queue)})")
 
         if len(queue) >= 2:
-            player1 = queue.pop(0)
-            player2 = queue.pop(0)
+            p1_id = queue.pop(0)
+            p2_id = queue.pop(0)
             match_id = str(uuid.uuid4())[:8]
             self.matches[match_id] = {
-                "player1": player1,
-                "player2": player2,
+                "match_id": match_id,
+                "player1_id": p1_id,
+                "player2_id": p2_id,
                 "exercise_id": exercise_id,
+                "player1_score": 0,
+                "player2_score": 0,
+                "player1_ready": False,
+                "player2_ready": False,
+                "status": "active",
+                "created_at": time.time(),
             }
+            self.user_to_match[p1_id] = match_id
+            self.user_to_match[p2_id] = match_id
             self.exercise_counts[exercise_id] = len(queue)
-            print(f"🔗 Match #{match_id} created for exercise {exercise_id}")
-            return match_id, player1, player2
+            print(f"🔗 Match #{match_id} created between {p1_id} and {p2_id}")
+            return match_id, p1_id, p2_id
         return None, None, None
 
-    def leave_queue(self, user_id, exercise_id=None):
-        self.online_users.discard(user_id)
+    def get_match_for_user(self, user_id: str):
+        match_id = self.user_to_match.get(user_id)
+        if match_id:
+            return match_id, self.matches.get(match_id)
+        return None, None
+
+    def leave_queue(self, user_id: str, exercise_id: str | None = None):
         if exercise_id:
             queue = self.queues.get(exercise_id, [])
-            self.queues[exercise_id] = [p for p in queue if p["user_id"] != user_id]
+            self.queues[exercise_id] = [u for u in queue if u != user_id]
             self.exercise_counts[exercise_id] = len(self.queues[exercise_id])
+        else:
+            for ex_id, q in self.queues.items():
+                self.queues[ex_id] = [u for u in q if u != user_id]
+                self.exercise_counts[ex_id] = len(self.queues[ex_id])
 
-    def cancel_match(self, match_id):
+    async def end_match(self, match_id: str, reason: str = "ended", leaving_user_id: str | None = None):
         match = self.matches.pop(match_id, None)
-        if match:
-            for p in [match["player1"], match["player2"]]:
-                self.leave_queue(p["user_id"], match["exercise_id"])
+        if not match:
+            return
+
+        p1_id = match["player1_id"]
+        p2_id = match["player2_id"]
+        self.user_to_match.pop(p1_id, None)
+        self.user_to_match.pop(p2_id, None)
+
+        # Notify remaining opponent
+        opponent_id = p2_id if leaving_user_id == p1_id else p1_id
+        opponent_ws = self.connection_mgr.get(opponent_id)
+        if opponent_ws:
+            try:
+                await opponent_ws.send_text(json.dumps({
+                    "type": "match_leave",
+                    "reason": reason,
+                    "sender": leaving_user_id or "system"
+                }))
+            except Exception:
+                pass
 
     def get_counts(self):
+        # Active users count includes presence listeners + active matchmakers
+        total_unique = len(self.presence_users.union(set(self.connection_mgr.active_connections.keys())))
         return {
-            "total_online": len(self.online_users),
+            "total_online": max(1, total_unique),
             "exercise_counts": dict(self.exercise_counts),
         }
 
-matchmaker = MatchmakingManager()
+conn_manager = ConnectionManager()
+matchmaker = MatchmakingManager(conn_manager)
 
 @app.get("/api/online")
 async def get_online_count():
@@ -195,57 +260,137 @@ async def get_online_count():
 @app.websocket("/ws/presence")
 async def presence_websocket(ws: WebSocket):
     await ws.accept()
+    user_id = f"anon_{uuid.uuid4().hex[:8]}"
     try:
         init = await ws.receive_text()
-        data = json.loads(init)
-        user_id = data.get("user_id", f"anon_{uuid.uuid4().hex[:8]}")
-        matchmaker.online_users.add(user_id)
-        await ws.send_text(json.dumps({"type": "online", "total": len(matchmaker.online_users)}))
+        try:
+            data = json.loads(init)
+            user_id = data.get("user_id", user_id)
+        except Exception:
+            pass
+
+        matchmaker.add_presence(user_id)
+        await ws.send_text(json.dumps({"type": "online", "total": matchmaker.get_counts()["total_online"]}))
 
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
-        matchmaker.online_users.discard(user_id)
+        matchmaker.remove_presence(user_id)
         print(f"\n🔌 User {user_id} disconnected from presence")
 
 @app.websocket("/ws/match")
 async def match_websocket(ws: WebSocket):
     await ws.accept()
-    user_id = None
-    exercise_id = None
+    user_id = f"anon_{uuid.uuid4().hex[:8]}"
+    exercise_id = "1"
 
     try:
         init = await ws.receive_text()
-        data = json.loads(init)
-        user_id = data.get("user_id", f"anon_{uuid.uuid4().hex[:8]}")
-        exercise_id = data.get("exercise_id", "1")
+        try:
+            data = json.loads(init)
+            user_id = data.get("user_id", user_id)
+            exercise_id = str(data.get("exercise_id", "1"))
+        except Exception:
+            pass
+
+        conn_manager.register(user_id, ws)
         await ws.send_text(json.dumps({"type": "joined", "user_id": user_id}))
 
-        match_id, p1, p2 = matchmaker.join_queue(ws, user_id, exercise_id)
+        match_id, p1_id, p2_id = matchmaker.join_queue(user_id, exercise_id)
 
         if match_id:
-            for player, role in [(p1, "player1"), (p2, "player2")]:
-                await player["ws"].send_text(json.dumps({
+            p1_ws = conn_manager.get(p1_id)
+            p2_ws = conn_manager.get(p2_id)
+            if p1_ws:
+                await p1_ws.send_text(json.dumps({
                     "type": "matched",
                     "match_id": match_id,
-                    "role": role,
-                    "opponent": p2["user_id"] if role == "player1" else p1["user_id"],
+                    "role": "player1",
+                    "opponent": p2_id,
+                }))
+            if p2_ws:
+                await p2_ws.send_text(json.dumps({
+                    "type": "matched",
+                    "match_id": match_id,
+                    "role": "player2",
+                    "opponent": p1_id,
                 }))
 
         while True:
-            msg = await ws.receive_text()
-            if match_id:
-                match = matchmaker.matches.get(match_id)
-                if match:
-                    opponent = match["player2"] if ws == match["player1"]["ws"] else match["player1"]
-                    try:
-                        await opponent["ws"].send_text(msg)
-                    except Exception as e:
-                        print(f"Error forwarding match data: {e}")
+            raw_msg = await ws.receive_text()
+            try:
+                msg = json.loads(raw_msg)
+            except Exception:
+                continue
+
+            msg_type = msg.get("type")
+            current_match_id, match = matchmaker.get_match_for_user(user_id)
+
+            if msg_type in ("leave", "match_leave"):
+                if current_match_id:
+                    await matchmaker.end_match(current_match_id, reason="player_left", leaving_user_id=user_id)
+                else:
+                    matchmaker.leave_queue(user_id, exercise_id)
+                break
+
+            if not match:
+                continue
+
+            is_p1 = (user_id == match["player1_id"])
+            opponent_id = match["player2_id"] if is_p1 else match["player1_id"]
+            opponent_ws = conn_manager.get(opponent_id)
+
+            if not opponent_ws:
+                continue
+
+            if msg_type == "score":
+                score_val = max(0, min(1000, int(msg.get("score", 0))))
+                if is_p1:
+                    match["player1_score"] = score_val
+                else:
+                    match["player2_score"] = score_val
+                await opponent_ws.send_text(json.dumps({
+                    "type": "score",
+                    "score": score_val,
+                    "sender": user_id
+                }))
+
+            elif msg_type == "peer_ready":
+                if is_p1:
+                    match["player1_ready"] = True
+                else:
+                    match["player2_ready"] = True
+                await opponent_ws.send_text(json.dumps({
+                    "type": "peer_ready",
+                    "sender": user_id
+                }))
+
+            elif msg_type == "frame":
+                frame_data = msg.get("data")
+                if frame_data:
+                    await opponent_ws.send_text(json.dumps({
+                        "type": "frame",
+                        "data": frame_data
+                    }))
+
+            elif msg_type in ("rematch_request", "rematch_accepted", "rematch_declined"):
+                if msg_type == "rematch_accepted":
+                    match["player1_score"] = 0
+                    match["player2_score"] = 0
+                    match["player1_ready"] = False
+                    match["player2_ready"] = False
+
+                await opponent_ws.send_text(json.dumps({
+                    "type": msg_type,
+                    "sender": user_id
+                }))
+
     except WebSocketDisconnect:
+        conn_manager.unregister(user_id)
         matchmaker.leave_queue(user_id, exercise_id)
-        if match_id:
-            matchmaker.cancel_match(match_id)
+        active_match_id, _ = matchmaker.get_match_for_user(user_id)
+        if active_match_id:
+            await matchmaker.end_match(active_match_id, reason="disconnect", leaving_user_id=user_id)
         print(f"\n🔌 User {user_id} disconnected from matchmaking")
 
 # ============= STREAMING SYSTEM (/{username} path) =============

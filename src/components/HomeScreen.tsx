@@ -20,6 +20,7 @@ import {
   fetchQueueCounts,
 } from '../utils/matchmaking';
 import { useMatchmakingStore } from '../store/matchmakingStore';
+import { useUserStore } from '../store/userStore';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { ExercisesScreen, ExerciseItem } from '../screens/ExercisesScreen';
 import { HomeFeedScreen } from '../screens/HomeFeedScreen';
@@ -73,6 +74,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const queueCounts = useMatchmakingStore((state) => state.exercise_counts);
   const setCounts = useMatchmakingStore((state) => state.setCounts);
 
+  const selectedExerciseId = useUserStore((state) => state.selectedExerciseId);
+  const setSelectedExerciseId = useUserStore((state) => state.setSelectedExerciseId);
+
   const loadExercises = async () => {
     try {
       const data = await fetchExercisesFromSupabase();
@@ -88,6 +92,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     loadExercises();
   }, []);
 
+  // When selectedExerciseId changes in store, set selectedExercise
+  useEffect(() => {
+    if (selectedExerciseId) {
+      const found = exercisesList.find((ex) => ex.id === selectedExerciseId);
+      if (found) {
+        setSelectedExercise(found);
+      }
+    }
+  }, [selectedExerciseId, exercisesList]);
+
   const isFirstTabRender = useRef(true);
 
   useEffect(() => {
@@ -96,7 +110,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       return;
     }
     setSelectedExercise(null);
-  }, [activeTab]);
+    setSelectedExerciseId(null);
+  }, [activeTab, setSelectedExerciseId]);
 
   useEffect(() => {
     try {
@@ -206,10 +221,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <ExerciseDetailScreen
           exercise={selectedExercise}
           detailTab={detailSubTab}
-          onBack={() => setSelectedExercise(null)}
+          onBack={() => {
+            setSelectedExercise(null);
+            setSelectedExerciseId(null);
+          }}
           onJoinQueue={handleJoinQueue}
           onDetailTabChange={setDetailSubTab}
           onStartCustomMatch={handleStartCustomMatch}
+          onOpenCamera={onOpenCamera}
         />
       );
     }

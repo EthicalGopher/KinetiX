@@ -114,9 +114,14 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   const [matchPhase, setMatchPhase] = useState<MatchPhase>('loading_resources');
   const [localReady, setLocalReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
-  const [setupCount, setSetupCount] = useState(20); // 20s camera setup countdown
+  const [setupCount, setSetupCount] = useState(30); // 30s camera setup countdown
+  const [visibility, setVisibility] = useState<number>(0); // 0 to 1 smooth visibility
   const [timeLeft, setTimeLeft] = useState(120); // 2 mins duel match timer
   const [matchEnded, setMatchEnded] = useState(false);
+
+  // Animated values for setup phase choreography
+  const setupPositionAnim = useRef(new Animated.Value(0)).current; // 0 = center (large), 1 = top (small)
+  const instructionAnim = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = smoothly revealed
 
   const matchEndedRef = useRef(false);
   const recordedResultRef = useRef(false);
@@ -166,7 +171,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       } catch (e) {}
     })();
 
-    const removeMatchListener = addMatchMessageListener((msg: any) => {
+    const removeMatchListener = addMatchMessageListener(async (msg: any) => {
       if (msg.type === 'peer_ready') {
         setOpponentReady(true);
       }
@@ -180,6 +185,33 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         }
         opponentWebViewRef.current?.injectJavaScript(`window.updateFrame && window.updateFrame('${msg.data}'); true;`);
       }
+
+      // Opponent left the match
+      if (msg.type === 'match_leave' || msg.type === 'leave') {
+        const currentPhase = matchPhaseRef.current;
+        if (currentPhase === 'loading_resources' || currentPhase === 'setup_countdown') {
+          // Camera adjustment / setup phase: Redirect without rating penalty
+          Alert.alert(
+            'Opponent Left 🚪',
+            `@${opponentUsername} left during setup. Returning to exercise details.`,
+            [{ text: 'OK', onPress: () => handleClose() }]
+          );
+        } else if (currentPhase === 'active_match') {
+          // Active match: Opponent forfeit -> Opponent defeat, You WIN (+10 points)
+          if (!recordedResultRef.current && user?.id) {
+            recordedResultRef.current = true;
+            matchEndedRef.current = true;
+            await recordExerciseMatchResult(user.id, exerciseId, 'win', selfScore);
+            await refreshProfile();
+          }
+          Alert.alert(
+            'Victory by Forfeit! 🏆',
+            `@${opponentUsername} forfeited the match! You won (+10 pts).`,
+            [{ text: 'Great!', onPress: () => handleClose() }]
+          );
+        }
+      }
+
       if (msg.type === 'rematch_request') {
         Alert.alert(
           'Rematch Request! ⚔️',
@@ -217,7 +249,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       removeMatchListener();
       disconnectMatchSocket();
     };
-  }, [opponentUsername, mode, selfUsername, exerciseId]);
+  }, [opponentUsername, mode, selfUsername, exerciseId, user?.id, selfScore, refreshProfile]);
 
   // Automatic Fallback for Opponent Ready (e.g. offline bot or fast networks)
   useEffect(() => {
@@ -227,15 +259,44 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     return () => clearTimeout(timeout);
   }, []);
 
-  // Check if both resources are loaded -> Transition to 20s setup countdown
+  // Transition to 30s setup countdown when both resources are ready
   useEffect(() => {
     if (localReady && opponentReady && matchPhase === 'loading_resources') {
       setMatchPhase('setup_countdown');
-      setSetupCount(20);
+      setSetupCount(30);
     }
   }, [localReady, opponentReady, matchPhase]);
 
-  // 20s Setup Countdown Timer
+  // When setup_countdown phase becomes active, run the animation sequence:
+  // 1. Counter centered for 1.2s
+  // 2. Counter shrinks & shifts smoothly to top (600ms)
+  // 3. Guidance text smoothly scales and fades in
+  useEffect(() => {
+    if (matchPhase === 'setup_countdown') {
+      setupPositionAnim.setValue(0);
+      instructionAnim.setValue(0);
+
+      const animTimeout = setTimeout(() => {
+        Animated.sequence([
+          Animated.timing(setupPositionAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: false,
+          }),
+          Animated.spring(instructionAnim, {
+            toValue: 1,
+            friction: 7,
+            tension: 50,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 1200);
+
+      return () => clearTimeout(animTimeout);
+    }
+  }, [matchPhase, setupPositionAnim, instructionAnim]);
+
+  // 30s Setup Countdown Timer
   useEffect(() => {
     if (matchPhase !== 'setup_countdown') return;
 
@@ -285,6 +346,11 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           sendMatchMessage({ type: 'peer_ready' });
         }
 
+        // Live pose visibility during camera adjustment mode
+        if (data.type === 'POSE_VISIBILITY' && typeof data.visibility === 'number') {
+          setVisibility(data.visibility);
+        }
+
         if (
           !matchEndedRef.current &&
           mode === 'faceoff' &&
@@ -323,7 +389,45 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     }
   };
 
-  const handleClose = async () => {
+  const handleClose = async (force: boolean = false) => {
+    const currentPhase = matchPhaseRef.current;
+
+    // If leaving during an active match, confirm defeat (-10 pts)
+    if (!force && currentPhase === 'active_match' && !matchEndedRef.current) {
+      Alert.alert(
+        'Forfeit Match? ⚠️',
+        'Leaving now counts as a Defeat (-10 pts) and awards victory to your opponent (+10 pts).',
+        [
+          { text: 'Stay & Fight', style: 'cancel' },
+          {
+            text: 'Forfeit (-10 pts)',
+            style: 'destructive',
+            onPress: async () => {
+              // Send leave broadcast to opponent
+              sendMatchMessage({ type: 'match_leave', sender: selfUsername });
+
+              // Record Defeat for self
+              if (!recordedResultRef.current && user?.id) {
+                recordedResultRef.current = true;
+                matchEndedRef.current = true;
+                await recordExerciseMatchResult(user.id, exerciseId, 'defeat', selfScore);
+                await refreshProfile();
+              }
+
+              try {
+                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+              } catch (e) {}
+              onClose();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Setup / Camera adjustment mode or match already ended: Leave without penalty
+    sendMatchMessage({ type: 'match_leave', sender: selfUsername });
+
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     } catch (e) {}
@@ -334,11 +438,29 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     setSelfScore(0);
     setOpponentScore(0);
     setTimeLeft(120);
-    setSetupCount(20);
+    setSetupCount(30);
     setMatchEnded(false);
     matchEndedRef.current = false;
     recordedResultRef.current = false;
+    setupPositionAnim.setValue(0);
+    instructionAnim.setValue(0);
     setMatchPhase('setup_countdown');
+
+    setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(setupPositionAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+        Animated.spring(instructionAnim, {
+          toValue: 1,
+          friction: 7,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 1200);
   };
 
   const handleRestartMatch = () => {
@@ -519,14 +641,98 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         </View>
       )}
 
-      {/* OVERLAY 2: 20-Second Clean Camera Setup Countdown (No extra text clutter) */}
-      {matchPhase === 'setup_countdown' && (
-        <View style={styles.countdownOverlay} pointerEvents="none">
-          <Animated.View style={styles.countdownCircleBadge}>
-            <Text style={styles.countdownNumberText}>{setupCount}</Text>
-          </Animated.View>
-        </View>
-      )}
+      {/* OVERLAY 2: 30-Second Camera Setup with Center-to-Top Animation & Clean 1-2 Word Visibility Instruction */}
+      {matchPhase === 'setup_countdown' && (() => {
+        // Dynamic clean 1-2 word instruction based on visibility & countdown
+        let instructionText = 'STEP BACK';
+        let instructionColor = '#F87171'; // Red/Salmon
+        let instructionBg = 'rgba(239, 68, 68, 0.35)';
+        let instructionBorder = '#EF4444';
+
+        if (setupCount <= 3) {
+          instructionText = 'GET READY';
+          instructionColor = '#E2F163';
+          instructionBg = 'rgba(226, 241, 99, 0.35)';
+          instructionBorder = '#E2F163';
+        } else if (visibility >= 0.7) {
+          instructionText = 'PERFECT';
+          instructionColor = '#34D399'; // Emerald
+          instructionBg = 'rgba(52, 211, 153, 0.35)';
+          instructionBorder = '#10B981';
+        } else if (visibility >= 0.35) {
+          instructionText = 'MOVE BACK';
+          instructionColor = '#FBBF24'; // Amber
+          instructionBg = 'rgba(251, 191, 36, 0.35)';
+          instructionBorder = '#F59E0B';
+        }
+
+        const centerTop = (windowHeight - 140) / 2;
+        const targetTop = 18;
+
+        const animatedTop = setupPositionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [centerTop, targetTop],
+        });
+
+        const animatedScale = setupPositionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.52],
+        });
+
+        // Guidance text smooth fade, scale, and subtle slide-in animation
+        const instructionOpacity = instructionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 1],
+        });
+
+        const instructionScale = instructionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.85, 1],
+        });
+
+        const instructionTranslateY = instructionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [15, 0],
+        });
+
+        return (
+          <View style={styles.countdownOverlay} pointerEvents="none">
+            {/* Countdown Badge - Starts in center, becomes small and moves smoothly to top */}
+            <Animated.View
+              style={[
+                styles.countdownCircleBadge,
+                {
+                  position: 'absolute',
+                  top: animatedTop,
+                  transform: [{ scale: animatedScale }],
+                },
+              ]}
+            >
+              <Text style={styles.countdownNumberText}>{setupCount}</Text>
+            </Animated.View>
+
+            {/* Guidance Text Card - Smoothly appears after counter reaches the top */}
+            <Animated.View
+              style={[
+                styles.instructionPillCard,
+                {
+                  backgroundColor: instructionBg,
+                  borderColor: instructionBorder,
+                  opacity: instructionOpacity,
+                  transform: [
+                    { scale: instructionScale },
+                    { translateY: instructionTranslateY },
+                  ],
+                },
+              ]}
+            >
+              <Text style={[styles.instructionMainText, { color: instructionColor }]}>
+                {instructionText}
+              </Text>
+            </Animated.View>
+          </View>
+        );
+      })()}
 
       {/* Top HUD Scoreboard (Active during Match) */}
       {(matchPhase === 'active_match' || matchPhase === 'match_ended') && (
@@ -989,6 +1195,26 @@ const styles = StyleSheet.create({
     fontSize: 72,
     fontWeight: '900',
     lineHeight: 80,
+  },
+  instructionPillCard: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 36,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  instructionMainText: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   scoreBoard: {
     position: 'absolute',

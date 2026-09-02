@@ -62,8 +62,7 @@ export function initBattleChannel(
         if (
           payload &&
           currentSubscribedUserId &&
-          (payload.receiverId === currentSubscribedUserId ||
-            payload.receiverUsername?.toLowerCase() === currentSubscribedUserId.toLowerCase())
+          payload.receiverId === currentSubscribedUserId
         ) {
           inviteListeners.forEach((cb) => {
             try {
@@ -75,7 +74,11 @@ export function initBattleChannel(
         }
       })
       .on('broadcast', { event: 'custom_battle_response' }, ({ payload }: any) => {
-        if (payload) {
+        if (
+          payload &&
+          currentSubscribedUserId &&
+          (payload.senderId === currentSubscribedUserId || payload.receiverId === currentSubscribedUserId)
+        ) {
           responseListeners.forEach((cb) => {
             try {
               cb(payload);
@@ -114,8 +117,9 @@ export async function sendCustomBattleInvite(
   exerciseName: string,
   mode: BattleMode = 'faceoff'
 ): Promise<BattleInvite> {
+  const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
   const invite: BattleInvite = {
-    id: `invite_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    id: `invite_${Date.now()}_${randomHex.substring(0, 8)}`,
     senderId: sender.id,
     senderUsername: sender.username,
     senderAvatar: sender.avatar_config,
@@ -125,7 +129,7 @@ export async function sendCustomBattleInvite(
     exerciseName,
     mode,
     createdAt: Date.now(),
-    matchRoomId: `room_${sender.username}_${receiver.username}_${Date.now()}`,
+    matchRoomId: `room_${randomHex}`,
   };
 
   // Ensure channel is ready
@@ -152,7 +156,7 @@ export async function acceptCustomBattleInvite(
   currentUsername: string
 ) {
   const matchRoomId =
-    invite.matchRoomId || `room_${invite.senderUsername}_${currentUsername}_${Date.now()}`;
+    invite.matchRoomId || `room_${Math.random().toString(36).substring(2, 12)}`;
 
   const payload = {
     inviteId: invite.id,

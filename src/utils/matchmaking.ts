@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from './supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
@@ -9,12 +7,13 @@ export type MatchMessage =
   | { type: 'matched'; match_id: string; role: 'player1' | 'player2'; opponent: string }
   | { type: 'frame'; data: string }
   | { type: 'pose'; landmarks: any[]; fps: number }
-  | { type: 'score'; score: number }
-  | { type: 'peer_ready' }
+  | { type: 'score'; score: number; sender?: string }
+  | { type: 'peer_ready'; sender?: string }
   | { type: 'rematch_request'; sender?: string }
   | { type: 'rematch_accepted'; sender?: string }
   | { type: 'rematch_declined'; sender?: string }
-  | { type: 'leave' };
+  | { type: 'match_leave'; sender?: string }
+  | { type: 'leave'; sender?: string };
 
 export type QueueCounts = {
   total_online: number;
@@ -22,7 +21,6 @@ export type QueueCounts = {
 };
 
 let socket: WebSocket | null = null;
-let realtimeMatchChannel: RealtimeChannel | null = null;
 let currentMatchRoomId: string | null = null;
 let currentSenderUserId: string | null = null;
 let messageListeners: ((msg: MatchMessage) => void)[] = [];
@@ -39,22 +37,50 @@ const getWsUrl = (httpUrl: string) => {
   return httpUrl.replace(/^http/, 'ws');
 };
 
+export const isMatchSocketConnected = () => {
+  return socket !== null && socket.readyState === WebSocket.OPEN;
+};
+
 export const connectMatchSocket = (userId?: string, roomIdOrExerciseId?: string) => {
   const url = `${getWsUrl(BACKEND_URL)}/ws/match`;
-  wsUrl = url;
-  currentSenderUserId = userId || `anon_${Date.now()}`;
-  currentMatchRoomId = roomIdOrExerciseId || 'default_room';
+  const nextUserId = userId || `anon_${Date.now()}`;
+  const nextRoomId = roomIdOrExerciseId || 'default_room';
 
-  // 1. Setup Backend WebSocket
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.close();
+  // If already connected for the same user and room/queue, don't destroy and reconnect
+  if (
+    socket &&
+    (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) &&
+    currentSenderUserId === nextUserId &&
+    currentMatchRoomId === nextRoomId
+  ) {
+    return;
+  }
+
+  currentSenderUserId = nextUserId;
+  currentMatchRoomId = nextRoomId;
+  wsUrl = url;
+
+  if (socket) {
+    try {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    } catch (e) {}
+    socket = null;
   }
 
   try {
-    socket = new WebSocket(url);
+    const ws = new WebSocket(url);
+    socket = ws;
 
-    socket.onopen = () => {
-      socket?.send(
+    ws.onopen = () => {
+      if (socket !== ws) return;
+      console.log(`[Matchmaking] Connected to ${url} as ${currentSenderUserId} in room ${currentMatchRoomId}`);
+      ws.send(
         JSON.stringify({
           user_id: currentSenderUserId,
           exercise_id: currentMatchRoomId,
@@ -65,60 +91,40 @@ export const connectMatchSocket = (userId?: string, roomIdOrExerciseId?: string)
         .then((counts: QueueCounts) => {
           connectListeners.forEach((cb) => cb(counts));
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn('[Matchmaking] Failed to fetch queue counts:', err);
+        });
     };
 
-    socket.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (socket !== ws) return;
       try {
         const msg: MatchMessage = JSON.parse(event.data);
         messageListeners.forEach((cb) => cb(msg));
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[Matchmaking] Failed to parse message payload:', event.data, e);
+      }
     };
 
-    socket.onerror = () => {};
-    socket.onclose = () => {};
-  } catch (e) {}
+    ws.onerror = (e) => {
+      console.warn('[Matchmaking] WebSocket error encountered:', e);
+    };
 
-  // 2. Setup High-Reliability Supabase Realtime Channel
-  if (realtimeMatchChannel) {
-    supabase.removeChannel(realtimeMatchChannel);
-  }
-
-  const roomTopic = `match_realtime_${currentMatchRoomId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-  realtimeMatchChannel = supabase.channel(roomTopic, {
-    config: {
-      broadcast: { self: false },
-    },
-  });
-
-  realtimeMatchChannel
-    .on('broadcast', { event: 'match_msg' }, ({ payload }: { payload: { sender: string; msg: MatchMessage } }) => {
-      if (payload && payload.msg && payload.sender !== currentSenderUserId) {
-        messageListeners.forEach((cb) => cb(payload.msg));
+    ws.onclose = (event) => {
+      console.log(`[Matchmaking] WebSocket closed (code: ${event.code}, reason: ${event.reason || 'none'})`);
+      if (socket === ws) {
+        socket = null;
       }
-    })
-    .subscribe();
+    };
+  } catch (e) {
+    console.error('[Matchmaking] Failed to instantiate WebSocket:', e);
+  }
 };
 
 export const sendMatchMessage = (msg: MatchMessage) => {
-  // Send via WebSocket
   if (socket && socket.readyState === WebSocket.OPEN) {
     try {
       socket.send(JSON.stringify(msg));
-    } catch (e) {}
-  }
-
-  // Send via Supabase Realtime broadcast
-  if (realtimeMatchChannel) {
-    try {
-      realtimeMatchChannel.send({
-        type: 'broadcast',
-        event: 'match_msg',
-        payload: {
-          sender: currentSenderUserId,
-          msg,
-        },
-      });
     } catch (e) {}
   }
 };
@@ -140,18 +146,18 @@ export const addConnectListener = (cb: (counts: QueueCounts) => void) => {
 export const disconnectMatchSocket = () => {
   if (socket) {
     try {
-      socket.send(JSON.stringify({ type: 'leave' }));
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'leave' }));
+        socket.close();
+      }
     } catch (e) {}
-    socket.close();
     socket = null;
   }
-
-  if (realtimeMatchChannel) {
-    try {
-      supabase.removeChannel(realtimeMatchChannel);
-    } catch (e) {}
-    realtimeMatchChannel = null;
-  }
+  currentMatchRoomId = null;
 };
 
 export const fetchQueueCounts = async (): Promise<QueueCounts> => {

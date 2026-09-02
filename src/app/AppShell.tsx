@@ -170,6 +170,9 @@ export default function AppShell() {
               setIsMatchCamera(false);
               setIsFullscreen(false);
               setActiveTab('home');
+              if (matchExerciseId) {
+                useUserStore.getState().setSelectedExerciseId(matchExerciseId);
+              }
             }}
           />
         ) : isFullscreen ? (
@@ -180,6 +183,9 @@ export default function AppShell() {
             onClose={() => {
               setIsFullscreen(false);
               setActiveTab('home');
+              if (soloExerciseId) {
+                useUserStore.getState().setSelectedExerciseId(soloExerciseId);
+              }
             }}
           />
         ) : (
