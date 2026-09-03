@@ -4,16 +4,20 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codeques
 
 export type MatchMessage =
   | { type: 'joined'; user_id: string }
-  | { type: 'matched'; match_id: string; role: 'player1' | 'player2'; opponent: string }
-  | { type: 'frame'; data: string }
+  | { type: 'matched'; match_id: string; exercise_id?: string; role: 'player1' | 'player2'; opponent: string }
+  | { type: 'frame'; data: string; match_id?: string }
   | { type: 'pose'; landmarks: any[]; fps: number }
-  | { type: 'score'; score: number; sender?: string }
-  | { type: 'peer_ready'; sender?: string }
-  | { type: 'rematch_request'; sender?: string }
-  | { type: 'rematch_accepted'; sender?: string }
-  | { type: 'rematch_declined'; sender?: string }
-  | { type: 'match_leave'; sender?: string }
-  | { type: 'leave'; sender?: string };
+  | { type: 'score'; score: number; match_id?: string; sender?: string }
+  | { type: 'peer_ready'; match_id?: string; sender?: string }
+  | { type: 'game_end'; match_id?: string; player1_score?: number; player2_score?: number; sender?: string }
+  | { type: 'rematch_request'; match_id?: string; sender?: string }
+  | { type: 'rematch_accepted'; match_id?: string; sender?: string }
+  | { type: 'rematch_declined'; match_id?: string; sender?: string }
+  | { type: 'opponent_left'; match_id?: string; reason?: string; sender?: string }
+  | { type: 'match_leave'; match_id?: string; reason?: string; sender?: string }
+  | { type: 'leave'; sender?: string }
+  | { type: 'ping' }
+  | { type: 'pong'; time?: number };
 
 export type QueueCounts = {
   total_online: number;

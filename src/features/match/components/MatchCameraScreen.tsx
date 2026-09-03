@@ -39,6 +39,7 @@ import { recordExerciseMatchResult } from '../../../utils/rankingService';
 import { useUserStore } from '../../../store/userStore';
 import { sendFriendRequest } from '../../../utils/friendService';
 import { sendCustomBattleInvite } from '../../../utils/customBattleService';
+import { LoadingScreen } from '../../../screens/LoadingScreen';
 
 export type MatchMode = 'faceoff' | 'quickjoin';
 
@@ -186,8 +187,17 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
         opponentWebViewRef.current?.injectJavaScript(`window.updateFrame && window.updateFrame('${msg.data}'); true;`);
       }
 
+      if (msg.type === 'game_end') {
+        if (!matchEndedRef.current) {
+          matchEndedRef.current = true;
+          setMatchEnded(true);
+          setMatchPhase('match_ended');
+          setTimeLeft(0);
+        }
+      }
+
       // Opponent left the match
-      if (msg.type === 'match_leave' || msg.type === 'leave') {
+      if (msg.type === 'opponent_left' || msg.type === 'match_leave' || msg.type === 'leave') {
         const currentPhase = matchPhaseRef.current;
         if (currentPhase === 'loading_resources' || currentPhase === 'setup_countdown') {
           // Camera adjustment / setup phase: Redirect without rating penalty
@@ -247,9 +257,8 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
     return () => {
       removeMatchListener();
-      disconnectMatchSocket();
     };
-  }, [opponentUsername, mode, selfUsername, exerciseId, user?.id, selfScore, refreshProfile]);
+  }, [opponentUsername, mode, selfUsername, exerciseId]);
 
   // Automatic Fallback for Opponent Ready (e.g. offline bot or fast networks)
   useEffect(() => {
@@ -326,6 +335,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
           matchEndedRef.current = true;
           setMatchEnded(true);
           setMatchPhase('match_ended');
+          sendMatchMessage({ type: 'game_end', sender: selfUsername });
           return 0;
         }
         return current - 1;
@@ -333,7 +343,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
     }, 1000);
 
     return () => clearInterval(duelTimer);
-  }, [matchPhase]);
+  }, [matchPhase, selfUsername]);
 
   const handleWebViewMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -625,20 +635,18 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
       {/* OVERLAY 1: Resource Loading Indicator */}
       {matchPhase === 'loading_resources' && (
-        <View style={styles.syncLoadingOverlay}>
-          <View style={styles.syncLoadingCard}>
-            <ActivityIndicator size="large" color="#E2F163" />
-            <Text style={styles.syncLoadingTitle}>SYNCING PLAYERS</Text>
-            <View style={styles.syncStatusRow}>
-              <View style={[styles.syncStatusDot, localReady && styles.syncStatusDotReady]} />
-              <Text style={styles.syncStatusText}>You: {localReady ? 'Ready' : 'Loading…'}</Text>
-            </View>
-            <View style={styles.syncStatusRow}>
-              <View style={[styles.syncStatusDot, opponentReady && styles.syncStatusDotReady]} />
-              <Text style={styles.syncStatusText}>Opponent: {opponentReady ? 'Ready' : 'Loading…'}</Text>
-            </View>
-          </View>
-        </View>
+        <LoadingScreen
+          title="SYNCING PLAYERS"
+          message={
+            !localReady
+              ? 'Loading AI pose tracking model...'
+              : !opponentReady
+              ? 'Waiting for opponent to connect...'
+              : 'Both players ready! Starting setup...'
+          }
+          fullScreen={false}
+          onCancel={handleClose}
+        />
       )}
 
       {/* OVERLAY 2: 30-Second Camera Setup with Center-to-Top Animation & Clean 1-2 Word Visibility Instruction */}

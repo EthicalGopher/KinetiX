@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { GetStartedScreen } from '../screens/GetStartedScreen';
+import { LoadingScreen } from '../screens/LoadingScreen';
 import { HomeScreen } from '../components/HomeScreen';
 import { AuthModal } from '../features/auth/components/AuthModal';
 import { CameraScreen } from '../features/camera/components/CameraScreen';
@@ -136,10 +137,7 @@ export default function AppShell() {
   if (isAuthLoading) {
     return (
       <SafeAreaProvider>
-        <View style={[styles.container, styles.centerLoading]}>
-          <ActivityIndicator size="large" color="#E2F163" />
-          <Text style={styles.loadingText}>Initializing Ojas...</Text>
-        </View>
+        <LoadingScreen message="Initializing Ojas..." />
       </SafeAreaProvider>
     );
   }
@@ -245,23 +243,15 @@ export default function AppShell() {
         />
 
         {matchWaiting && (
-          <View style={styles.matchWaitingOverlay}>
-            <View style={styles.matchWaitingCard}>
-              <ActivityIndicator size="large" color="#E2F163" />
-              <Text style={styles.matchWaitingTitle}>Finding Opponent</Text>
-              <Text style={styles.matchWaitingDesc}>Waiting for another player to join...</Text>
-              <TouchableOpacity
-                style={styles.cancelQueueButton}
-                activeOpacity={0.85}
-                onPress={() => {
-                  disconnectMatchSocket();
-                  setMatchWaiting(false);
-                }}
-              >
-                <Text style={styles.cancelQueueButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <LoadingScreen
+            title="FINDING OPPONENT"
+            message="Searching for a worthy rival in the queue..."
+            fullScreen={false}
+            onCancel={() => {
+              disconnectMatchSocket();
+              setMatchWaiting(false);
+            }}
+          />
         )}
 
         {/* Incoming 1v1 Battle Challenge Modal */}
