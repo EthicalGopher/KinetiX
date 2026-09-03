@@ -34,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
     'James';
 
   const avatarConfig = profile?.avatar_config;
+  const avatarUrl = profile?.avatar_url;
   const displayOnlineCount = propOnlineCount !== undefined ? propOnlineCount : storeOnline;
 
   const handleProfilePress = () => {
@@ -51,7 +52,12 @@ export const Header: React.FC<HeaderProps> = ({
       onPress={handleProfilePress}
     >
       <View style={styles.avatarBorder}>
-        <Avatar username={activeUsername} size={42} config={avatarConfig} />
+        <Avatar
+          username={activeUsername}
+          size={42}
+          config={avatarConfig}
+          avatarUrl={avatarUrl}
+        />
       </View>
       <View style={styles.nameTextBox}>
         <Text style={styles.greetingText} numberOfLines={1}>

@@ -171,16 +171,62 @@ class MatchmakingManager:
         self.matches: dict[str, dict] = {}
         # player_id (user_id) -> match_id mapping for active games
         self.player_matches: dict[str, str] = {}
-        # Set of online user IDs from presence tracking (independent from match / queue)
-        self.online_users: set[str] = set()
+        # unique_username -> count of active presence sockets (deduplicates multi-tabs/reconnects)
+        self.online_users: dict[str, int] = {}
         # exercise_id -> count of players currently waiting
         self.exercise_counts: dict[str, int] = {}
+        # Connected presence websockets for broadcasting live count updates
+        self.presence_sockets: set[WebSocket] = set()
 
-    def add_presence(self, user_id: str):
-        self.online_users.add(user_id)
+    def normalize_username(self, user_id: str) -> str:
+        """Extracts clean unique username to deduplicate multiple connections from same user."""
+        if not user_id:
+            return "anonymous"
+        clean = str(user_id).strip().lower()
+        if clean.startswith("anon_") or clean.startswith("player_"):
+            return clean
+        return clean
 
-    def remove_presence(self, user_id: str):
-        self.online_users.discard(user_id)
+    async def add_presence(self, user_id: str, ws: WebSocket | None = None):
+        uname = self.normalize_username(user_id)
+        self.online_users[uname] = self.online_users.get(uname, 0) + 1
+        if ws:
+            self.presence_sockets.add(ws)
+        print(f"🟢 User '{uname}' connected to presence (active sessions: {self.online_users[uname]}, total unique online: {len(self.online_users)})")
+        await self.broadcast_online_count()
+
+    async def remove_presence(self, user_id: str, ws: WebSocket | None = None):
+        uname = self.normalize_username(user_id)
+        if uname in self.online_users:
+            self.online_users[uname] -= 1
+            if self.online_users[uname] <= 0:
+                del self.online_users[uname]
+        if ws:
+            self.presence_sockets.discard(ws)
+        print(f"🔴 User '{uname}' disconnected from presence (total unique online: {len(self.online_users)})")
+        await self.broadcast_online_count()
+
+    async def broadcast_online_count(self):
+        """Broadcasts authoritative unique online user count to all active presence listeners."""
+        counts = self.get_counts()
+        payload = json.dumps({"type": "online", "total": counts["total_online"], "exercise_counts": counts["exercise_counts"]})
+        dead_sockets = []
+        for s in list(self.presence_sockets):
+            try:
+                await s.send_text(payload)
+            except Exception:
+                dead_sockets.append(s)
+        for d in dead_sockets:
+            self.presence_sockets.discard(d)
+
+    def get_counts(self):
+        # Unique online presence union (presence users + active game connection users deduplicated by username)
+        active_match_users = {self.normalize_username(u) for u in self.connection_mgr.active_connections.keys()}
+        unique_online = set(self.online_users.keys()).union(active_match_users)
+        return {
+            "total_online": max(1, len(unique_online)),
+            "exercise_counts": dict(self.exercise_counts),
+        }
 
     def join_queue(self, user_id: str, exercise_id: str):
         """Adds a player to an exercise queue. If 2 players are present, creates a new unique match."""
@@ -285,14 +331,6 @@ class MatchmakingManager:
         else:
             self.leave_queue(user_id, exercise_id)
 
-    def get_counts(self):
-        # Unique online presence union
-        total_unique = len(self.online_users.union(set(self.connection_mgr.active_connections.keys())))
-        return {
-            "total_online": max(1, total_unique),
-            "exercise_counts": dict(self.exercise_counts),
-        }
-
 conn_manager = ConnectionManager()
 matchmaker = MatchmakingManager(conn_manager)
 
@@ -312,13 +350,12 @@ async def presence_websocket(ws: WebSocket):
         except Exception:
             pass
 
-        matchmaker.add_presence(user_id)
-        await ws.send_text(json.dumps({"type": "online", "total": matchmaker.get_counts()["total_online"]}))
+        await matchmaker.add_presence(user_id, ws)
 
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
-        matchmaker.remove_presence(user_id)
+        await matchmaker.remove_presence(user_id, ws)
         print(f"\n🔌 User {user_id} disconnected from presence")
 
 ALLOWED_MESSAGE_TYPES = {

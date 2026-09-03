@@ -539,7 +539,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
               baseUrl: 'https://cdn.jsdelivr.net',
             }}
             userAgent="MobilePoseApp/1.0"
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
             mediaCapturePermissionGrantType="grant"
@@ -583,7 +583,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
               source={{
                 html: OPPONENT_STREAM_HTML,
               }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               javaScriptEnabled
               domStorageEnabled
               scrollEnabled={false}
@@ -592,7 +592,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
               originWhitelist={['*']}
             />
             {!hasOpponentStream && (
-              <View style={[StyleSheet.absoluteFillObject, styles.waitingOpponentBox]}>
+              <View style={[StyleSheet.absoluteFill, styles.waitingOpponentBox]}>
                 <ActivityIndicator size="small" color="#C8B6FF" />
                 <Text style={styles.waitingOpponentText}>@{opponentUsername}</Text>
               </View>
@@ -616,7 +616,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
                 baseUrl: 'https://cdn.jsdelivr.net',
               }}
               userAgent="MobilePoseApp/1.0"
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
               mediaCapturePermissionGrantType="grant"

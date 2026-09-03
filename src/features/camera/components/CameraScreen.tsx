@@ -902,7 +902,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           baseUrl: 'https://cdn.jsdelivr.net',
         }}
         userAgent="MobilePoseApp/1.0"
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
         mediaCapturePermissionGrantType="grant"

@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -15,13 +14,16 @@
     "android": {
       "permissions": [
         "CAMERA"
-      ],
-      "usesCleartextTraffic": true
+      ]
     },
     "extra": {
       "eas": {
         "projectId": "5bae5656-b031-43c6-97d3-cd248988b3a9"
       }
-    }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-status-bar"
+    ]
   }
 }

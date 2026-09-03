@@ -13,6 +13,8 @@ export interface AvatarProps {
   username?: string;
   size?: number;
   config?: AvatarConfig | string | any;
+  avatarUrl?: string | null;
+  profilePicUrl?: string | null;
   customStyle?: any;
 }
 
@@ -37,6 +39,8 @@ export const Avatar: React.FC<AvatarProps> = ({
   username = 'athlete',
   size = 36,
   config,
+  avatarUrl,
+  profilePicUrl,
   customStyle,
 }) => {
   const [imageError, setImageError] = useState(false);
@@ -55,7 +59,13 @@ export const Avatar: React.FC<AvatarProps> = ({
     return { seed: username || 'athlete', style: 'adventurer' as AvatarStyle, bgColor: undefined };
   }, [config, username]);
 
-  const uri = useMemo(() => getAvatarUri(seed, style, bgColor), [seed, style, bgColor]);
+  const resolvedUri = useMemo(() => {
+    const customImg = avatarUrl || profilePicUrl;
+    if (customImg && customImg.trim().length > 0) {
+      return customImg.trim();
+    }
+    return getAvatarUri(seed, style, bgColor);
+  }, [avatarUrl, profilePicUrl, seed, style, bgColor]);
 
   const fallbackColor = useMemo(() => {
     const colors = ['#2563EB', '#0F766E', '#B45309', '#BE123C', '#4338CA', '#7C3AED'];
@@ -79,7 +89,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     >
       {!imageError ? (
         <Image
-          source={{ uri }}
+          source={{ uri: resolvedUri }}
           style={{ width: size, height: size, borderRadius: size / 2 }}
           onError={() => setImageError(true)}
           resizeMode="cover"

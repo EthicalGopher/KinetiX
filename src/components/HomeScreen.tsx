@@ -126,10 +126,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    const userId = currentUser?.user?.id || currentUser?.id || undefined;
-    if (userId) {
-      connectPresenceSocket(userId);
-    }
+    const presenceUsername =
+      currentUser?.user_metadata?.username ||
+      currentUser?.email?.split('@')[0] ||
+      currentUser?.user?.id ||
+      currentUser?.id ||
+      'athlete';
+
+    connectPresenceSocket(presenceUsername);
 
     const refreshCounts = async () => {
       try {

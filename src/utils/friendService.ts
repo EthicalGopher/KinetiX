@@ -6,6 +6,7 @@ export interface FriendProfile {
   username: string;
   full_name?: string;
   avatar_config?: AvatarConfig;
+  avatar_url?: string | null;
   bio?: string;
   fitness_goal?: string;
 }

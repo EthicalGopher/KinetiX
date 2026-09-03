@@ -10,6 +10,7 @@ import {
   Alert,
   StatusBar,
   RefreshControl,
+  Image,
 } from 'react-native';
 import {
   User,
@@ -32,12 +33,15 @@ import {
   Dumbbell,
   ArrowLeft,
   Flame,
+  Camera as CameraIcon,
+  Upload,
 } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import {
   UserProfile,
   getOrCreateUserProfile,
   updateUserProfile,
+  uploadUserProfilePhoto,
   generateDefaultAvatar,
 } from '../utils/profileService';
 import {
@@ -51,6 +55,7 @@ import {
 } from '../utils/friendService';
 import { generateRandomUsername } from '../utils/usernameGenerator';
 import { supabase } from '../utils/supabase';
+import { useUserStore } from '../store/userStore';
 
 interface ProfileScreenProps {
   currentUser: any;
@@ -58,7 +63,7 @@ interface ProfileScreenProps {
   onLogout: () => void;
 }
 
-type ProfileTab = 'profile' | 'friends' | 'requests' | 'add_friend';
+export type ProfileTab = 'profile' | 'friends' | 'requests' | 'add_friend';
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   currentUser,
@@ -71,6 +76,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
 
   // Form Fields
   const [username, setUsername] = useState<string>('');
@@ -79,6 +85,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [bio, setBio] = useState<string>('');
   const [fitnessGoal, setFitnessGoal] = useState<string>('Strength & Stamina');
   const [avatarConfig, setAvatarConfig] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isGeneratingUsername, setIsGeneratingUsername] = useState<boolean>(false);
 
   // Friends State
@@ -100,6 +107,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setBio(data.bio || '');
       setFitnessGoal(data.fitness_goal || 'Strength & Stamina');
       setAvatarConfig(data.avatar_config || generateDefaultAvatar(data.username || 'user'));
+      setAvatarUrl(data.avatar_url || null);
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -139,10 +147,71 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  const handleRandomizeAvatar = () => {
-    const randomSeed = `athlete_${Math.floor(Math.random() * 100000)}`;
-    const newConfig = generateDefaultAvatar(randomSeed, avatarConfig?.style || 'adventurer');
-    setAvatarConfig(newConfig);
+  /**
+   * Pick and upload photo from device gallery/camera to Supabase Storage Image/Profiles
+   */
+  const handlePickAndUploadPhoto = async () => {
+    if (!currentUser?.id) return;
+
+    try {
+      let ImagePickerModule: any = null;
+
+      try {
+        ImagePickerModule = require('expo-image-picker');
+      } catch (err) {
+        console.warn('expo-image-picker native module is not linked in current build:', err);
+      }
+
+      if (!ImagePickerModule || !ImagePickerModule.launchImageLibraryAsync) {
+        Alert.alert(
+          'Rebuild Required ⚠️',
+          'A new native library (expo-image-picker) was added. Please rebuild your app binary (e.g. `npx expo run:android` or restart your development build).'
+        );
+        return;
+      }
+
+      const { status } = await ImagePickerModule.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera roll access is needed to upload a profile photo.');
+        return;
+      }
+
+      // Automatically crop 1:1 and compress image at 0.6 quality for optimal fast uploads
+      const result = await ImagePickerModule.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.6,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const selectedAsset = result.assets[0];
+      const base64Data = selectedAsset.base64;
+
+      if (!base64Data) {
+        throw new Error('Could not process image data');
+      }
+
+      setIsUploadingPhoto(true);
+      const uploadRes = await uploadUserProfilePhoto(currentUser.id, base64Data, 'jpg');
+      if (uploadRes.success && uploadRes.url) {
+        setAvatarUrl(uploadRes.url);
+        setProfile((prev) => (prev ? { ...prev, avatar_url: uploadRes.url } : null));
+        useUserStore.getState().refreshProfile();
+        Alert.alert('Photo Updated! 📸', 'Your new profile picture has been saved successfully.');
+      } else {
+        Alert.alert('Upload Failed', uploadRes.error || 'Could not upload photo to storage.');
+      }
+    } catch (e: any) {
+      console.error('Photo picker error:', e);
+      Alert.alert('Error', e?.message || 'Failed to select and upload photo.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleGenerateRandomUsername = async () => {
@@ -166,7 +235,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const handleSaveProfile = async () => {
     if (!currentUser?.id) return;
     if (!username.trim()) {
-      Alert.alert('Validation Error', 'Username cannot be empty.');
+      Alert.alert('Invalid Username', 'Username cannot be empty.');
       return;
     }
 
@@ -179,10 +248,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         bio: bio.trim(),
         fitness_goal: fitnessGoal,
         avatar_config: avatarConfig,
+        avatar_url: avatarUrl,
       });
 
       if (result.success) {
         setProfile((prev) => (prev ? { ...prev, ...result.data } : null));
+        useUserStore.getState().refreshProfile();
         setIsEditing(false);
         Alert.alert('Success', 'Your profile has been updated!');
       } else {
@@ -388,56 +459,37 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   username={username || currentUser?.email || 'athlete'}
                   size={96}
                   config={avatarConfig}
+                  avatarUrl={avatarUrl}
                 />
+                <TouchableOpacity
+                  style={styles.avatarUploadBadge}
+                  activeOpacity={0.8}
+                  onPress={handlePickAndUploadPhoto}
+                  disabled={isUploadingPhoto}
+                >
+                  {isUploadingPhoto ? (
+                    <ActivityIndicator size="small" color="#11141A" />
+                  ) : (
+                    <CameraIcon size={16} color="#11141A" />
+                  )}
+                </TouchableOpacity>
               </View>
 
-              {isEditing && (
-                <View style={styles.avatarEditContainer}>
-                  <TouchableOpacity
-                    style={styles.randomizeBtn}
-                    activeOpacity={0.8}
-                    onPress={handleRandomizeAvatar}
-                  >
-                    <Sparkles size={13} color="#11141A" style={{ marginRight: 4 }} />
-                    <Text style={styles.randomizeBtnText}>Shuffle Look</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.styleSelectorRow}>
-                    {[
-                      { id: 'adventurer', label: 'Adventurer' },
-                      { id: 'fun-emoji', label: 'Emoji' },
-                      { id: 'bottts', label: 'Robot' },
-                      { id: 'lorelei', label: 'Lorelei' },
-                      { id: 'pixel-art', label: 'Pixel' },
-                    ].map((st) => (
-                      <TouchableOpacity
-                        key={st.id}
-                        style={[
-                          styles.styleChip,
-                          avatarConfig?.style === st.id && styles.styleChipActive,
-                        ]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          setAvatarConfig((prev: any) => ({
-                            ...(prev || {}),
-                            seed: prev?.seed || username || 'athlete',
-                            style: st.id,
-                          }));
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.styleChipText,
-                            avatarConfig?.style === st.id && styles.styleChipTextActive,
-                          ]}
-                        >
-                          {st.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
+              <TouchableOpacity
+                style={styles.uploadPhotoBtn}
+                activeOpacity={0.8}
+                onPress={handlePickAndUploadPhoto}
+                disabled={isUploadingPhoto}
+              >
+                {isUploadingPhoto ? (
+                  <ActivityIndicator size="small" color="#11141A" style={{ marginRight: 6 }} />
+                ) : (
+                  <Upload size={14} color="#11141A" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.uploadPhotoBtnText}>
+                  {avatarUrl ? 'Change Profile Photo' : 'Upload Profile Photo'}
+                </Text>
+              </TouchableOpacity>
 
               <Text style={styles.heroName}>{fullName || username || 'Ojas Athlete'}</Text>
               <Text style={styles.heroUsername}>@{username || 'athlete'}</Text>
@@ -576,7 +628,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </TouchableOpacity>
             </View>
 
-            {friends.length === 0 ? (
+             {friends.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Users size={36} color="#64748B" style={{ marginBottom: 10 }} />
                 <Text style={styles.emptyCardTitle}>No Friends Yet</Text>
@@ -595,113 +647,116 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             ) : (
               <View style={styles.friendListCard}>
                 {friends.map((item) => (
-                  <View key={item.friendship_id} style={styles.friendRow}>
-                    <Avatar
-                      username={item.friend.username}
-                      size={44}
-                      config={item.friend.avatar_config}
-                    />
-                    <View style={styles.friendInfoBox}>
-                      <Text style={styles.friendName} numberOfLines={1}>
-                        {item.friend.full_name || item.friend.username}
-                      </Text>
-                      <Text style={styles.friendUsername}>@{item.friend.username}</Text>
-                      {item.friend.fitness_goal ? (
-                        <Text style={styles.friendBio} numberOfLines={1}>
-                          🎯 {item.friend.fitness_goal}
-                        </Text>
-                      ) : null}
-                    </View>
+                   <View key={item.friendship_id} style={styles.friendRow}>
+                     <Avatar
+                       username={item.friend.username}
+                       size={44}
+                       config={item.friend.avatar_config}
+                       avatarUrl={item.friend.avatar_url}
+                     />
+                     <View style={styles.friendInfoBox}>
+                       <Text style={styles.friendName} numberOfLines={1}>
+                         {item.friend.full_name || item.friend.username}
+                       </Text>
+                       <Text style={styles.friendUsername}>@{item.friend.username}</Text>
+                       {item.friend.fitness_goal ? (
+                         <Text style={styles.friendBio} numberOfLines={1}>
+                           🎯 {item.friend.fitness_goal}
+                         </Text>
+                       ) : null}
+                     </View>
 
-                    <TouchableOpacity
-                      style={styles.removeFriendBtn}
-                      activeOpacity={0.7}
-                      onPress={() => handleDeleteOrReject(item, true)}
-                      disabled={actionLoadingId === item.friendship_id}
-                    >
-                      {actionLoadingId === item.friendship_id ? (
-                        <ActivityIndicator size="small" color="#EF4444" />
-                      ) : (
-                        <Trash2 size={16} color="#94A3B8" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : activeTab === 'requests' ? (
-          /* Friend Requests View */
-          <View style={styles.friendsContainer}>
-            <Text style={styles.sectionTitle}>
-              INCOMING REQUESTS ({incomingRequests.length})
-            </Text>
+                     <TouchableOpacity
+                       style={styles.removeFriendBtn}
+                       activeOpacity={0.7}
+                       onPress={() => handleDeleteOrReject(item, true)}
+                       disabled={actionLoadingId === item.friendship_id}
+                     >
+                       {actionLoadingId === item.friendship_id ? (
+                         <ActivityIndicator size="small" color="#EF4444" />
+                       ) : (
+                         <Trash2 size={16} color="#94A3B8" />
+                       )}
+                     </TouchableOpacity>
+                   </View>
+                 ))}
+               </View>
+             )}
+           </View>
+         ) : activeTab === 'requests' ? (
+           /* Friend Requests View */
+           <View style={styles.friendsContainer}>
+             <Text style={styles.sectionTitle}>
+               INCOMING REQUESTS ({incomingRequests.length})
+             </Text>
 
-            {incomingRequests.length === 0 ? (
-              <View style={styles.emptyCardMini}>
-                <Text style={styles.emptyCardSubtitle}>No incoming friend requests.</Text>
-              </View>
-            ) : (
-              <View style={styles.friendListCard}>
-                {incomingRequests.map((item) => (
-                  <View key={item.friendship_id} style={styles.friendRow}>
-                    <Avatar
-                      username={item.friend.username}
-                      size={44}
-                      config={item.friend.avatar_config}
-                    />
-                    <View style={styles.friendInfoBox}>
-                      <Text style={styles.friendName}>
-                        {item.friend.full_name || item.friend.username}
-                      </Text>
-                      <Text style={styles.friendUsername}>@{item.friend.username}</Text>
-                    </View>
+             {incomingRequests.length === 0 ? (
+               <View style={styles.emptyCardMini}>
+                 <Text style={styles.emptyCardSubtitle}>No incoming friend requests.</Text>
+               </View>
+             ) : (
+               <View style={styles.friendListCard}>
+                 {incomingRequests.map((item) => (
+                   <View key={item.friendship_id} style={styles.friendRow}>
+                     <Avatar
+                       username={item.friend.username}
+                       size={44}
+                       config={item.friend.avatar_config}
+                       avatarUrl={item.friend.avatar_url}
+                     />
+                     <View style={styles.friendInfoBox}>
+                       <Text style={styles.friendName}>
+                         {item.friend.full_name || item.friend.username}
+                       </Text>
+                       <Text style={styles.friendUsername}>@{item.friend.username}</Text>
+                     </View>
 
-                    <View style={styles.requestActionRow}>
-                      <TouchableOpacity
-                        style={styles.acceptBtn}
-                        activeOpacity={0.8}
-                        onPress={() => handleAcceptRequest(item)}
-                        disabled={actionLoadingId === item.friendship_id}
-                      >
-                        {actionLoadingId === item.friendship_id ? (
-                          <ActivityIndicator size="small" color="#11141A" />
-                        ) : (
-                          <Check size={16} color="#11141A" />
-                        )}
-                      </TouchableOpacity>
+                     <View style={styles.requestActionRow}>
+                       <TouchableOpacity
+                         style={styles.acceptBtn}
+                         activeOpacity={0.8}
+                         onPress={() => handleAcceptRequest(item)}
+                         disabled={actionLoadingId === item.friendship_id}
+                       >
+                         {actionLoadingId === item.friendship_id ? (
+                           <ActivityIndicator size="small" color="#11141A" />
+                         ) : (
+                           <Check size={16} color="#11141A" />
+                         )}
+                       </TouchableOpacity>
 
-                      <TouchableOpacity
-                        style={styles.rejectBtn}
-                        activeOpacity={0.8}
-                        onPress={() => handleDeleteOrReject(item, false)}
-                        disabled={actionLoadingId === item.friendship_id}
-                      >
-                        <X size={16} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
+                       <TouchableOpacity
+                         style={styles.rejectBtn}
+                         activeOpacity={0.8}
+                         onPress={() => handleDeleteOrReject(item, false)}
+                         disabled={actionLoadingId === item.friendship_id}
+                       >
+                         <X size={16} color="#EF4444" />
+                       </TouchableOpacity>
+                     </View>
+                   </View>
+                 ))}
+               </View>
+             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-              PENDING SENT REQUESTS ({outgoingRequests.length})
-            </Text>
+             <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
+               PENDING SENT REQUESTS ({outgoingRequests.length})
+             </Text>
 
-            {outgoingRequests.length === 0 ? (
-              <View style={styles.emptyCardMini}>
-                <Text style={styles.emptyCardSubtitle}>No pending sent requests.</Text>
-              </View>
-            ) : (
-              <View style={styles.friendListCard}>
-                {outgoingRequests.map((item) => (
-                  <View key={item.friendship_id} style={styles.friendRow}>
-                    <Avatar
-                      username={item.friend.username}
-                      size={44}
-                      config={item.friend.avatar_config}
-                    />
+             {outgoingRequests.length === 0 ? (
+               <View style={styles.emptyCardMini}>
+                 <Text style={styles.emptyCardSubtitle}>No pending sent requests.</Text>
+               </View>
+             ) : (
+               <View style={styles.friendListCard}>
+                 {outgoingRequests.map((item) => (
+                   <View key={item.friendship_id} style={styles.friendRow}>
+                     <Avatar
+                       username={item.friend.username}
+                       size={44}
+                       config={item.friend.avatar_config}
+                       avatarUrl={item.friend.avatar_url}
+                     />
                     <View style={styles.friendInfoBox}>
                       <Text style={styles.friendName}>
                         {item.friend.full_name || item.friend.username}
@@ -892,50 +947,41 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatarWrapper: {
-    marginBottom: 12,
+    position: 'relative',
+    marginBottom: 8,
   },
-  avatarEditContainer: {
-    width: '100%',
+  avatarUploadBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E2F163',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#161B22',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
-  randomizeBtn: {
+  uploadPhotoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#E2F163',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
     borderRadius: 20,
+    marginTop: 6,
     marginBottom: 10,
   },
-  randomizeBtnText: {
+  uploadPhotoBtnText: {
     color: '#11141A',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
-  },
-  styleSelectorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  styleChip: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: '#212631',
-  },
-  styleChipActive: {
-    backgroundColor: '#C8B6FF',
-  },
-  styleChipText: {
-    color: '#CBD5E1',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  styleChipTextActive: {
-    color: '#11141A',
-    fontWeight: '900',
   },
   heroName: {
     color: '#FFFFFF',
