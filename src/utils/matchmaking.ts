@@ -2,9 +2,20 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://app.codequestpro.in';
 
+export interface FFALeaderboardPlayer {
+  username: string;
+  score: number;
+  avatar_url?: string | null;
+}
+
 export type MatchMessage =
   | { type: 'joined'; user_id: string }
   | { type: 'matched'; match_id: string; exercise_id?: string; role: 'player1' | 'player2'; opponent: string }
+  | { type: 'ffa_lobby_update'; match_id: string; exercise_id: string; players: string[]; player_count: number; countdown: number; status: string }
+  | { type: 'ffa_matched'; match_id: string; exercise_id: string; mode: 'ffa'; players: string[]; player_count: number }
+  | { type: 'ffa_leaderboard'; match_id: string; leaderboard: FFALeaderboardPlayer[]; sender?: string; score?: number }
+  | { type: 'ffa_game_end'; match_id: string; leaderboard: FFALeaderboardPlayer[]; sender?: string }
+  | { type: 'player_left_ffa'; match_id?: string; sender?: string; players?: string[] }
   | { type: 'frame'; data: string; match_id?: string }
   | { type: 'pose'; landmarks: any[]; fps: number }
   | { type: 'score'; score: number; match_id?: string; sender?: string }

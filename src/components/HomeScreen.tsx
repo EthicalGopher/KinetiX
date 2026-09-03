@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -38,8 +38,9 @@ interface HomeScreenProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
   onOpenCamera: (exerciseId?: string, exerciseName?: string) => void;
-  onOpenMatchCamera: (opponent: string, mode: 'faceoff' | 'quickjoin', exerciseId?: string) => void;
-  onEnterQueue: () => void;
+  onOpenMatchCamera: (opponent: string, mode: 'faceoff' | 'quickjoin' | 'ffa', exerciseId?: string) => void;
+  onEnterQueue: (title?: string, message?: string, badge?: string, subInfo?: string, isFFA?: boolean) => void;
+  onUpdateQueueStatus?: (title?: string, message?: string, badge?: string, subInfo?: string, countdown?: number, playerCount?: number) => void;
   onCancelQueue: () => void;
   onShowAuthModal: () => void;
   currentUser: any;
@@ -54,6 +55,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenCamera,
   onOpenMatchCamera,
   onEnterQueue,
+  onUpdateQueueStatus,
   onCancelQueue,
   onShowAuthModal,
   currentUser,
@@ -77,7 +79,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const selectedExerciseId = useUserStore((state) => state.selectedExerciseId);
   const setSelectedExerciseId = useUserStore((state) => state.setSelectedExerciseId);
 
-  const loadExercises = async () => {
+  const loadExercises = useCallback(async () => {
     try {
       const data = await fetchExercisesFromSupabase();
       if (data && data.length > 0) {
@@ -86,11 +88,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     } catch (e) {
       console.warn('Failed to load exercises from Supabase:', e);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadExercises();
-  }, []);
+  }, [loadExercises]);
 
   // When selectedExerciseId changes in store, set selectedExercise
   useEffect(() => {
@@ -164,9 +166,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
-  const handleJoinQueue = (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start') => {
-    // Trigger matchmaking loading modal for 1v1 opponent search
-    onEnterQueue();
+  const handleJoinQueue = (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start' | 'ffa') => {
+    const isFFA = queue === 'ffa';
 
     const userId =
       currentUser?.user_metadata?.username ||
@@ -175,20 +176,57 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       currentUser?.id ||
       `Player_${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const matchQueueId = `${exercise.id}_${queue}`;
-    connectMatchSocket(userId, matchQueueId);
+    if (isFFA) {
+      onEnterQueue(
+        'FREE FOR ALL LOBBY',
+        'Gathering athletes (Max 10). Match starts when timer expires or lobby fills...',
+        'WAITING: 30s',
+        '👥 1 Athlete Joined',
+        true
+      );
 
-    const cleanup = addMatchMessageListener((msg) => {
-      if (msg.type === 'matched') {
-        onOpenMatchCamera(msg.opponent, queue === 'quick_start' ? 'quickjoin' : 'faceoff', exercise.id);
-        cleanup();
-      }
-    });
+      const matchQueueId = `${exercise.id}_ffa`;
+      connectMatchSocket(userId, matchQueueId);
+
+      const cleanup = addMatchMessageListener((msg) => {
+        if (msg.type === 'ffa_lobby_update') {
+          onUpdateQueueStatus?.(
+            'FREE FOR ALL LOBBY',
+            `Match starts in ${msg.countdown}s (or when 10 athletes join)...`,
+            `STARTING IN ${msg.countdown}s`,
+            `👥 ${msg.player_count} ${msg.player_count === 1 ? 'Athlete' : 'Athletes'} in Lobby (Max 10)`,
+            msg.countdown,
+            msg.player_count
+          );
+        } else if (msg.type === 'ffa_matched') {
+          onOpenMatchCamera('Free For All', 'ffa', exercise.id);
+          cleanup();
+        }
+      });
+    } else {
+      onEnterQueue(
+        'FINDING OPPONENT',
+        'Searching for a worthy rival in the queue...',
+        undefined,
+        undefined,
+        false
+      );
+
+      const matchQueueId = `${exercise.id}_${queue}`;
+      connectMatchSocket(userId, matchQueueId);
+
+      const cleanup = addMatchMessageListener((msg) => {
+        if (msg.type === 'matched') {
+          onOpenMatchCamera(msg.opponent, queue === 'quick_start' ? 'quickjoin' : 'faceoff', exercise.id);
+          cleanup();
+        }
+      });
+    }
   };
 
   const handleStartCustomMatch = (
     opponent: string,
-    mode: 'faceoff' | 'quickjoin',
+    mode: 'faceoff' | 'quickjoin' | 'ffa',
     exerciseId: string,
     customRoomId?: string
   ) => {

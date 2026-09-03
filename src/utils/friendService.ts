@@ -75,7 +75,7 @@ export async function fetchFriends(userId: string): Promise<FriendshipItem[]> {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_config, bio, fitness_goal')
+      .select('id, username, full_name, avatar_config, avatar_url, bio, fitness_goal')
       .in('id', friendUserIds);
 
     const profilesMap = new Map<string, FriendProfile>();
@@ -122,7 +122,7 @@ export async function fetchIncomingRequests(userId: string): Promise<FriendshipI
     const senderIds = data.map((d) => d.sender_id);
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_config, bio, fitness_goal')
+      .select('id, username, full_name, avatar_config, avatar_url, bio, fitness_goal')
       .in('id', senderIds);
 
     const profilesMap = new Map<string, FriendProfile>();
@@ -168,7 +168,7 @@ export async function fetchOutgoingRequests(userId: string): Promise<FriendshipI
     const receiverIds = data.map((d) => d.receiver_id);
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_config, bio, fitness_goal')
+      .select('id, username, full_name, avatar_config, avatar_url, bio, fitness_goal')
       .in('id', receiverIds);
 
     const profilesMap = new Map<string, FriendProfile>();

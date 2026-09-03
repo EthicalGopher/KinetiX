@@ -414,6 +414,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
                 username={item.friend.username}
                 size={54}
                 config={item.friend.avatar_config}
+                avatarUrl={item.friend.avatar_url}
               />
               <View style={styles.onlinePresenceDot} />
             </View>

@@ -70,11 +70,11 @@ interface ExerciseDetailScreenProps {
   exercise: ExerciseItem;
   detailTab: 'workouts' | 'shop' | 'leaderboard' | 'how_to_play';
   onBack: () => void;
-  onJoinQueue: (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start') => void;
+  onJoinQueue: (exercise: ExerciseItem, queue: 'faceoff' | 'quick_start' | 'ffa') => void;
   onDetailTabChange: (tab: 'workouts' | 'shop' | 'leaderboard' | 'how_to_play') => void;
   onStartCustomMatch?: (
     opponent: string,
-    mode: 'faceoff' | 'quickjoin',
+    mode: 'faceoff' | 'quickjoin' | 'ffa',
     exerciseId: string,
     customRoomId?: string
   ) => void;
@@ -455,94 +455,84 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
               </Text>
             </View>
 
-            {/* QUEUE CARDS IN REFERENCE WORKOUT PLAN STYLE */}
+            {/* QUEUE CARDS IN MINIMAL CLEAN STYLE */}
             {[
               {
                 id: 'solo_practice',
-                title: `${exercise.name} Solo Practice`,
-                description: `On-device AI pose tracking with real-time joint feedback & form coaching`,
-                icon: '🎯',
+                title: 'Solo Practice',
+                description: 'AI form coaching & feedback',
+                iconComponent: <Camera size={20} color="#E2F163" />,
                 actionText: 'START',
                 isFriendQueue: false,
                 isSoloMode: true,
-                bgTheme: 'dark',
+                badge: 'SOLO',
+              },
+              {
+                id: 'ffa',
+                title: 'Free For All',
+                description: '10-player live leaderboard match',
+                iconComponent: <Trophy size={20} color="#E2F163" />,
+                actionText: 'PLAY',
+                isFriendQueue: false,
+                isSoloMode: false,
+                isFFA: true,
+                badge: '10 PLAYERS',
               },
               {
                 id: 'faceoff',
-                title: `${exercise.name} Faceoff (1v1)`,
-                description: `Live video duel with camera feed and AI parallel depth rep counting`,
-                icon: '⚔️',
+                title: 'Faceoff',
+                description: '1v1 split-screen video duel',
+                iconComponent: <Video size={20} color="#E2F163" />,
                 actionText: 'PLAY',
                 isFriendQueue: false,
                 isSoloMode: false,
-                bgTheme: 'dark',
+                badge: '1V1 VIDEO',
               },
               {
                 id: 'quick_start',
-                title: `${exercise.name} Quick Start (1v1)`,
-                description: `Private 1v1 score duel`,
-                icon: '⚡',
+                title: 'Quick Duel',
+                description: '1v1 fast score battle',
+                iconComponent: <Zap size={20} color="#E2F163" />,
                 actionText: 'PLAY',
                 isFriendQueue: false,
                 isSoloMode: false,
-                bgTheme: 'dark',
+                badge: '1V1 SCORE',
               },
               {
                 id: 'custom_friend',
-                title: `${exercise.name} Friend Duel (1v1)`,
-                description: `Challenge online friends to a direct 1v1 ${exercise.name} battle`,
-                icon: '👥',
+                title: 'Friend Battle',
+                description: 'Direct challenge with online friends',
+                iconComponent: <Users size={20} color="#E2F163" />,
                 actionText: 'PLAY',
                 isFriendQueue: true,
                 isSoloMode: false,
-                bgTheme: 'dark',
+                badge: 'INVITE',
               },
             ].map((queue) => {
-              const isLavender = queue.bgTheme === 'lavender';
               return (
-                <View
-                  key={queue.id}
-                  style={[
-                    styles.queueItemCard,
-                    isLavender && styles.queueItemCardLavender,
-                  ]}
-                >
-                  <View style={[styles.queueIconBox, isLavender && styles.queueIconBoxLavender]}>
-                    <Text style={{ fontSize: 24 }}>{queue.icon}</Text>
+                <View key={queue.id} style={styles.queueItemCard}>
+                  <View style={styles.queueIconBox}>
+                    {queue.iconComponent}
                   </View>
 
                   <View style={styles.queueInfoBox}>
                     <View style={styles.queueTitleRow}>
-                      <Text
-                        style={[
-                          styles.queueTitleText,
-                          isLavender && styles.queueTitleTextLavender,
-                        ]}
-                      >
+                      <Text style={styles.queueTitleText} numberOfLines={1}>
                         {queue.title}
                       </Text>
-                      {queue.isSoloMode && (
+                      {queue.badge && (
                         <View style={styles.soloBadgePill}>
-                          <Text style={styles.soloBadgePillText}>SOLO</Text>
+                          <Text style={styles.soloBadgePillText}>{queue.badge}</Text>
                         </View>
                       )}
                     </View>
-                    <Text
-                      style={[
-                        styles.queueDescText,
-                        isLavender && styles.queueDescTextLavender,
-                      ]}
-                    >
+                    <Text style={styles.queueDescText} numberOfLines={1}>
                       {queue.description}
                     </Text>
                   </View>
 
                   <TouchableOpacity
-                    style={[
-                      styles.joinButton,
-                      queue.isSoloMode && styles.soloJoinButton,
-                      isLavender && styles.joinButtonLavender,
-                    ]}
+                    style={styles.joinButton}
                     activeOpacity={0.85}
                     onPress={() => {
                       if (queue.isSoloMode) {
@@ -553,17 +543,11 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         setShowFriendChallengeModal(true);
                         loadFriendsList();
                       } else {
-                        onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start');
+                        onJoinQueue(exercise, queue.id as 'faceoff' | 'quick_start' | 'ffa');
                       }
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.joinButtonText,
-                        queue.isSoloMode && styles.soloJoinButtonText,
-                        isLavender && styles.joinButtonTextLavender,
-                      ]}
-                    >
+                    <Text style={styles.joinButtonText}>
                       {queue.actionText}
                     </Text>
                   </TouchableOpacity>
@@ -667,6 +651,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                           username={entry.username}
                           size={38}
                           config={entry.avatar_config}
+                          avatarUrl={entry.avatar_url}
                         />
                       </View>
 
@@ -909,6 +894,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                                 username={item.friend.username}
                                 size={40}
                                 config={item.friend.avatar_config}
+                                avatarUrl={item.friend.avatar_url}
                               />
                               <View style={styles.onlineBadgeDot} />
                             </View>

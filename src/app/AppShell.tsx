@@ -5,6 +5,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { GetStartedScreen } from '../screens/GetStartedScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
+import { FFALoadingScreen } from '../screens/FFALoadingScreen';
 import { HomeScreen } from '../components/HomeScreen';
 import { AuthModal } from '../features/auth/components/AuthModal';
 import { CameraScreen } from '../features/camera/components/CameraScreen';
@@ -29,8 +30,15 @@ export default function AppShell() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isMatchCamera, setIsMatchCamera] = useState<boolean>(false);
   const [matchWaiting, setMatchWaiting] = useState<boolean>(false);
+  const [isFFALobby, setIsFFALobby] = useState<boolean>(false);
+  const [ffaLobbyCountdown, setFfaLobbyCountdown] = useState<number>(30);
+  const [ffaLobbyPlayerCount, setFfaLobbyPlayerCount] = useState<number>(1);
+  const [waitingTitle, setWaitingTitle] = useState<string>('FINDING OPPONENT');
+  const [waitingMessage, setWaitingMessage] = useState<string>('Searching for a worthy rival in the queue...');
+  const [waitingBadge, setWaitingBadge] = useState<string | undefined>(undefined);
+  const [waitingSubInfo, setWaitingSubInfo] = useState<string | undefined>(undefined);
   const [opponentUsername, setOpponentUsername] = useState<string>('');
-  const [matchMode, setMatchMode] = useState<'faceoff' | 'quickjoin'>('faceoff');
+  const [matchMode, setMatchMode] = useState<'faceoff' | 'quickjoin' | 'ffa'>('faceoff');
   const [matchExerciseId, setMatchExerciseId] = useState<string>('1');
   const [selectedModel, setSelectedModel] = useState<ModelComplexity>('medium');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
@@ -196,18 +204,39 @@ export default function AppShell() {
                 if (exerciseName) setSoloExerciseName(exerciseName);
                 setIsFullscreen(true);
               }}
-              onOpenMatchCamera={(opponent: string, mode: 'faceoff' | 'quickjoin', exerciseId?: string) => {
+              onOpenMatchCamera={(opponent: string, mode: 'faceoff' | 'quickjoin' | 'ffa', exerciseId?: string) => {
                 setMatchWaiting(false);
+                setIsFFALobby(false);
                 setOpponentUsername(opponent);
                 setMatchMode(mode);
                 if (exerciseId) setMatchExerciseId(exerciseId);
                 setIsMatchCamera(true);
                 setIsFullscreen(true);
               }}
-              onEnterQueue={() => setMatchWaiting(true)}
+              onEnterQueue={(title?: string, message?: string, badge?: string, subInfo?: string, isFFA?: boolean) => {
+                setWaitingTitle(title || 'FINDING OPPONENT');
+                setWaitingMessage(message || 'Searching for a worthy rival in the queue...');
+                setWaitingBadge(badge);
+                setWaitingSubInfo(subInfo);
+                setIsFFALobby(!!isFFA);
+                if (isFFA) {
+                  setFfaLobbyCountdown(30);
+                  setFfaLobbyPlayerCount(1);
+                }
+                setMatchWaiting(true);
+              }}
+              onUpdateQueueStatus={(title?: string, message?: string, badge?: string, subInfo?: string, countdown?: number, playerCount?: number) => {
+                if (title) setWaitingTitle(title);
+                if (message) setWaitingMessage(message);
+                if (badge !== undefined) setWaitingBadge(badge);
+                if (subInfo !== undefined) setWaitingSubInfo(subInfo);
+                if (typeof countdown === 'number') setFfaLobbyCountdown(countdown);
+                if (typeof playerCount === 'number') setFfaLobbyPlayerCount(playerCount);
+              }}
               onCancelQueue={() => {
                 disconnectMatchSocket();
                 setMatchWaiting(false);
+                setIsFFALobby(false);
               }}
               onShowAuthModal={() => {
                 setAuthMode('signin');
@@ -242,17 +271,34 @@ export default function AppShell() {
           }}
         />
 
-        {matchWaiting && (
-          <LoadingScreen
-            title="FINDING OPPONENT"
-            message="Searching for a worthy rival in the queue..."
+        {matchWaiting && isFFALobby ? (
+          <FFALoadingScreen
+            serverSeconds={ffaLobbyCountdown}
+            playerCount={ffaLobbyPlayerCount}
+            maxPlayers={10}
+            title={waitingTitle}
+            message={waitingMessage}
             fullScreen={false}
             onCancel={() => {
               disconnectMatchSocket();
               setMatchWaiting(false);
+              setIsFFALobby(false);
             }}
           />
-        )}
+        ) : matchWaiting ? (
+          <LoadingScreen
+            title={waitingTitle}
+            message={waitingMessage}
+            badgeText={waitingBadge}
+            subInfo={waitingSubInfo}
+            fullScreen={false}
+            onCancel={() => {
+              disconnectMatchSocket();
+              setMatchWaiting(false);
+              setIsFFALobby(false);
+            }}
+          />
+        ) : null}
 
         {/* Incoming 1v1 Battle Challenge Modal */}
         {incomingInvite && (

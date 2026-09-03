@@ -20,6 +20,7 @@ export interface ExerciseLeaderboardEntry {
   username: string;
   full_name?: string;
   avatar_config?: AvatarConfig;
+  avatar_url?: string | null;
   points: number;
   matches_played: number;
   matches_won: number;
@@ -130,7 +131,7 @@ export async function fetchExerciseLeaderboard(
     const userIds = statsData.map((s) => s.user_id);
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_config')
+      .select('id, username, full_name, avatar_config, avatar_url')
       .in('id', userIds);
 
     const profilesMap = new Map<string, any>();
@@ -145,6 +146,7 @@ export async function fetchExerciseLeaderboard(
         username: profile?.username || `athlete_${stat.user_id.slice(0, 5)}`,
         full_name: profile?.full_name,
         avatar_config: profile?.avatar_config,
+        avatar_url: profile?.avatar_url || null,
         points: stat.points ?? 0,
         matches_played: stat.matches_played ?? 0,
         matches_won: stat.matches_won ?? 0,

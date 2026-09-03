@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Animated,
   Alert,
   Dimensions,
   Image,
   PanResponder,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -33,6 +34,7 @@ import {
   disconnectMatchSocket,
   addMatchMessageListener,
   sendMatchMessage,
+  FFALeaderboardPlayer,
 } from '../../../utils/matchmaking';
 import { getPoseHtmlBundle } from '../../camera/components/CameraScreen';
 import { recordExerciseMatchResult } from '../../../utils/rankingService';
@@ -41,7 +43,7 @@ import { sendFriendRequest } from '../../../utils/friendService';
 import { sendCustomBattleInvite } from '../../../utils/customBattleService';
 import { LoadingScreen } from '../../../screens/LoadingScreen';
 
-export type MatchMode = 'faceoff' | 'quickjoin';
+export type MatchMode = 'faceoff' | 'quickjoin' | 'ffa';
 
 type MatchPhase = 'loading_resources' | 'setup_countdown' | 'active_match' | 'match_ended';
 
@@ -110,6 +112,9 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   const [hasOpponentStream, setHasOpponentStream] = useState(false);
   const [selfScore, setSelfScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
+  const [ffaLeaderboard, setFfaLeaderboard] = useState<FFALeaderboardPlayer[]>([]);
+  const [ffaReadyCount, setFfaReadyCount] = useState<number>(0);
+  const [ffaTotalPlayers, setFfaTotalPlayers] = useState<number>(0);
 
   // Match Phases & Timers
   const [matchPhase, setMatchPhase] = useState<MatchPhase>('loading_resources');
@@ -153,13 +158,22 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
   useEffect(() => {
     if (matchEnded && !recordedResultRef.current && user?.id) {
       recordedResultRef.current = true;
-      const result =
-        selfScore > opponentScore ? 'win' : selfScore === opponentScore ? 'draw' : 'defeat';
-      recordExerciseMatchResult(user.id, exerciseId, result, selfScore).then(() => {
-        refreshProfile();
-      });
+      if (mode === 'ffa') {
+        // In FFA: Top 3 or highest score is win/podium
+        const myRank = ffaLeaderboard.findIndex((p) => p.username === selfUsername || p.username === user.id) + 1;
+        const result = myRank === 1 ? 'win' : myRank > 0 && myRank <= 3 ? 'draw' : 'defeat';
+        recordExerciseMatchResult(user.id, exerciseId, result, selfScore).then(() => {
+          refreshProfile();
+        });
+      } else {
+        const result =
+          selfScore > opponentScore ? 'win' : selfScore === opponentScore ? 'draw' : 'defeat';
+        recordExerciseMatchResult(user.id, exerciseId, result, selfScore).then(() => {
+          refreshProfile();
+        });
+      }
     }
-  }, [matchEnded, selfScore, opponentScore, user?.id, exerciseId, refreshProfile]);
+  }, [matchEnded, selfScore, opponentScore, user?.id, exerciseId, refreshProfile, mode, ffaLeaderboard, selfUsername]);
 
   // Request Camera Permissions & Setup WebSocket message listeners
   useEffect(() => {
@@ -176,8 +190,27 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       if (msg.type === 'peer_ready') {
         setOpponentReady(true);
       }
+      if (msg.type === 'ffa_ready_update') {
+        if (typeof msg.ready_count === 'number') setFfaReadyCount(msg.ready_count);
+        if (typeof msg.total_players === 'number') setFfaTotalPlayers(msg.total_players);
+        if (msg.all_ready) {
+          setOpponentReady(true);
+        }
+      }
       if (!matchEndedRef.current && msg.type === 'score' && typeof msg.score === 'number') {
         setOpponentScore(msg.score);
+      }
+      if (msg.type === 'ffa_leaderboard' && Array.isArray(msg.leaderboard)) {
+        setFfaLeaderboard(msg.leaderboard);
+      }
+      if (msg.type === 'ffa_game_end' && Array.isArray(msg.leaderboard)) {
+        setFfaLeaderboard(msg.leaderboard);
+        if (!matchEndedRef.current) {
+          matchEndedRef.current = true;
+          setMatchEnded(true);
+          setMatchPhase('match_ended');
+          setTimeLeft(0);
+        }
       }
       if (!matchEndedRef.current && mode === 'faceoff' && msg.type === 'frame' && msg.data) {
         if (!hasReceivedFirstOpponentFrame.current) {
@@ -530,7 +563,7 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       <StatusBar hidden />
 
       {/* Main Split / Full Camera Feeds */}
-      {mode === 'quickjoin' ? (
+      {mode === 'quickjoin' || mode === 'ffa' ? (
         <View style={styles.yourContainerFull}>
           <WebView
             ref={webViewRef}
@@ -636,13 +669,17 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       {/* OVERLAY 1: Resource Loading Indicator */}
       {matchPhase === 'loading_resources' && (
         <LoadingScreen
-          title="SYNCING PLAYERS"
+          title={mode === 'ffa' ? 'SYNCING ATHLETES' : 'SYNCING PLAYERS'}
           message={
             !localReady
               ? 'Loading AI pose tracking model...'
+              : mode === 'ffa'
+              ? ffaTotalPlayers > 0
+                ? `Syncing players (${ffaReadyCount}/${ffaTotalPlayers} ready)...`
+                : 'Syncing all lobby athletes...'
               : !opponentReady
               ? 'Waiting for opponent to connect...'
-              : 'Both players ready! Starting setup...'
+              : 'All players synchronized! Starting setup...'
           }
           fullScreen={false}
           onCancel={handleClose}
@@ -745,12 +782,14 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
       {/* Top HUD Scoreboard (Active during Match) */}
       {(matchPhase === 'active_match' || matchPhase === 'match_ended') && (
         <ScoreBoard
+          mode={mode}
           selfScore={selfScore}
           opponentScore={opponentScore}
           timeLeft={timeLeft}
           ended={matchEnded}
           selfUsername={selfUsername}
           opponentUsername={opponentUsername}
+          ffaLeaderboard={ffaLeaderboard}
         />
       )}
 
@@ -947,23 +986,43 @@ function formatMatchTime(seconds: number): string {
 }
 
 const ScoreBoard: React.FC<{
+  mode?: MatchMode;
   selfScore: number;
   opponentScore: number;
   timeLeft: number;
   ended: boolean;
   selfUsername?: string;
   opponentUsername?: string;
+  ffaLeaderboard?: FFALeaderboardPlayer[];
 }> = ({
+  mode = 'faceoff',
   selfScore,
   opponentScore,
   timeLeft,
   ended,
   selfUsername = 'user',
   opponentUsername = 'opponent',
+  ffaLeaderboard = [],
 }) => {
   const selfScale = useBumpAnim(selfScore);
   const opponentScale = useBumpAnim(opponentScore);
   const pulseScale = useRef(new Animated.Value(1)).current;
+
+  // Build authoritative sorted FFA leaderboard including self
+  const activeFfaList: FFALeaderboardPlayer[] = useMemo(() => {
+    if (mode !== 'ffa') return [];
+    const listMap = new Map<string, number>();
+    listMap.set(selfUsername, selfScore);
+    ffaLeaderboard.forEach((p) => {
+      listMap.set(p.username, Math.max(p.score, listMap.get(p.username) || 0));
+    });
+    const result: FFALeaderboardPlayer[] = Array.from(listMap.entries()).map(([username, score]) => ({
+      username,
+      score,
+    }));
+    result.sort((a, b) => b.score - a.score);
+    return result;
+  }, [mode, selfUsername, selfScore, ffaLeaderboard]);
 
   const outcome: 'WIN' | 'LOSE' | 'DRAW' =
     selfScore > opponentScore ? 'WIN' : selfScore < opponentScore ? 'LOSE' : 'DRAW';
@@ -997,6 +1056,106 @@ const ScoreBoard: React.FC<{
     : timeLeft <= 30
     ? DRAW_COLOR
     : NEUTRAL_TIMER_COLOR;
+
+  if (mode === 'ffa') {
+    const myRank = activeFfaList.findIndex((p) => p.username === selfUsername) + 1;
+
+    return (
+      <View style={styles.ffaScoreBoardContainer} pointerEvents="none">
+        {/* Top Header: My Reps & Big Clean Timer */}
+        <View style={styles.ffaTopBar}>
+          <View style={styles.ffaMyStatsBadge}>
+            <Text style={styles.ffaMyStatsLabel}>YOU (RANK {myRank || 1})</Text>
+            <Text style={styles.ffaMyStatsScore}>{selfScore} REPS</Text>
+          </View>
+
+          <Animated.View
+            style={[
+              styles.timerBadge,
+              ended && styles.timerBadgeEnded,
+              { borderColor: timerColor },
+              ended && { backgroundColor: timerColor + '26' },
+              { transform: [{ scale: pulseScale }] },
+            ]}
+          >
+            {ended ? (
+              <Text style={[styles.timerOutcome, { color: timerColor }]} numberOfLines={1}>
+                {myRank === 1
+                  ? 'VICTORY (+15)'
+                  : myRank <= 3
+                  ? `PODIUM #${myRank} (+10)`
+                  : 'FINISHED (+5)'}
+              </Text>
+            ) : (
+              <>
+                <Text style={[styles.timerValue, { color: timerColor }]}>
+                  {formatMatchTime(timeLeft)}
+                </Text>
+                <Text style={styles.timerUnit}>{timeLeft >= 60 ? 'MIN' : 'SEC'}</Text>
+              </>
+            )}
+          </Animated.View>
+
+          <View style={styles.ffaLobbyCountBadge}>
+            <Text style={styles.ffaLobbyCountLabel}>ATHLETES</Text>
+            <Text style={styles.ffaLobbyCountNum}>{activeFfaList.length} / 10</Text>
+          </View>
+        </View>
+
+        {/* Live Clean FFA Leaderboard: Sorted highest reps on top (No boxes/emojis) */}
+        <View style={styles.ffaLeaderboardCard}>
+          <View style={styles.ffaLeaderboardHeaderRow}>
+            <Text style={styles.ffaLeaderboardHeading}>LEADERBOARD</Text>
+            <Text style={styles.ffaLeaderboardSub}>FREE FOR ALL</Text>
+          </View>
+
+          <ScrollView style={styles.ffaLeaderboardScroll} showsVerticalScrollIndicator={false}>
+            {activeFfaList.map((player, idx) => {
+              const isMe = player.username === selfUsername;
+              const isTop = idx === 0;
+
+              return (
+                <View
+                  key={player.username || idx}
+                  style={[
+                    styles.ffaLeaderboardRow,
+                    isMe && styles.ffaLeaderboardRowMe,
+                  ]}
+                >
+                  <Text style={[styles.ffaRankText, isTop && { color: '#E2F163' }, isMe && { color: '#E2F163' }]}>
+                    #{idx + 1}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.ffaPlayerUsername,
+                      isMe && styles.ffaPlayerUsernameMe,
+                      isTop && styles.ffaPlayerUsernameTop,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    @{player.username} {isMe ? '(You)' : ''}
+                  </Text>
+
+                  <View style={styles.ffaPlayerScoreBox}>
+                    <Text
+                      style={[
+                        styles.ffaPlayerScoreText,
+                        isMe ? { color: '#E2F163' } : isTop ? { color: '#E2F163' } : { color: '#FFFFFF' },
+                      ]}
+                    >
+                      {player.score}
+                    </Text>
+                    <Text style={styles.ffaPlayerScoreUnit}>reps</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.scoreBoard} pointerEvents="none">
@@ -1372,5 +1531,152 @@ const styles = StyleSheet.create({
   },
   friendActionBtn: {
     backgroundColor: '#C8B6FF', // Soft lavender
+  },
+  ffaScoreBoardContainer: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    right: 14,
+    zIndex: 80,
+    alignItems: 'flex-end',
+  },
+  ffaTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 8,
+  },
+  ffaMyStatsBadge: {
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2F163',
+  },
+  ffaMyStatsLabel: {
+    color: '#E2F163',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ffaMyStatsScore: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  ffaLobbyCountBadge: {
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'flex-end',
+  },
+  ffaLobbyCountLabel: {
+    color: '#8E95A0',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ffaLobbyCountNum: {
+    color: '#C8B6FF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  ffaLeaderboardCard: {
+    backgroundColor: 'rgba(12, 15, 20, 0.85)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    maxHeight: 160,
+    width: '56%',
+    maxWidth: 240,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  ffaLeaderboardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingBottom: 4,
+    marginBottom: 4,
+  },
+  ffaLeaderboardHeading: {
+    color: '#E2F163',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  ffaLeaderboardSub: {
+    color: '#8E95A0',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ffaLeaderboardScroll: {
+    maxHeight: 120,
+  },
+  ffaLeaderboardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    borderRadius: 8,
+    marginVertical: 1,
+  },
+  ffaLeaderboardRowMe: {
+    backgroundColor: 'rgba(226, 241, 99, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(226, 241, 99, 0.3)',
+  },
+  ffaRankBadge: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  ffaRankText: {
+    color: '#8E95A0',
+    fontSize: 10,
+    fontWeight: '900',
+    marginRight: 6,
+  },
+  ffaPlayerUsername: {
+    flex: 1,
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ffaPlayerUsernameMe: {
+    color: '#E2F163',
+    fontWeight: '900',
+  },
+  ffaPlayerUsernameTop: {
+    color: '#FDE047',
+    fontWeight: '900',
+  },
+  ffaPlayerScoreBox: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  ffaPlayerScoreText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  ffaPlayerScoreUnit: {
+    color: '#64748B',
+    fontSize: 8,
+    fontWeight: '700',
   },
 });
