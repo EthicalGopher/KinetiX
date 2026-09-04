@@ -145,6 +145,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ============= MATCHMAKING & CONNECTION SYSTEM =============
 
+MATCH_DURATION = 120  # Authoritative 2-minute match duration in seconds
+
 class ConnectionManager:
     def __init__(self):
         # user_id -> WebSocket
@@ -153,8 +155,12 @@ class ConnectionManager:
     def register(self, user_id: str, ws: WebSocket):
         self.active_connections[user_id] = ws
 
-    def unregister(self, user_id: str):
-        self.active_connections.pop(user_id, None)
+    def unregister(self, user_id: str, ws: WebSocket | None = None):
+        if ws is None:
+            self.active_connections.pop(user_id, None)
+        else:
+            if self.active_connections.get(user_id) is ws:
+                self.active_connections.pop(user_id, None)
 
     def get(self, user_id: str) -> WebSocket | None:
         return self.active_connections.get(user_id)
@@ -227,7 +233,7 @@ class MatchmakingManager:
         active_match_users = {self.normalize_username(u) for u in self.connection_mgr.active_connections.keys()}
         unique_online = set(self.online_users.keys()).union(active_match_users)
         return {
-            "total_online": max(1, len(unique_online)),
+            "total_online": len(unique_online),
             "exercise_counts": dict(self.exercise_counts),
         }
 
@@ -328,25 +334,29 @@ class MatchmakingManager:
         if not lobby or lobby.get("match_id") != match_id:
             return
 
-        lobby["status"] = "in_progress"
+        now = time.time()
         players = list(lobby["players"])
 
-        # Store in matches dictionary
-        self.matches[match_id] = {
+        # Store in matches dictionary with authoritative timing
+        match_obj = {
             "match_id": match_id,
             "exercise_id": exercise_id,
             "mode": "ffa",
             "players": players,
+            "ready_players": set(),
             "scores": {p: 0 for p in players},
-            "status": "in_progress",
-            "created_at": time.time(),
+            "status": "waiting",  # Transitions to in_progress once ready or timer fires
+            "created_at": now,
+            "started_at": now,
+            "ends_at": now + MATCH_DURATION + 30,  # 30s setup + 120s match
         }
+        self.matches[match_id] = match_obj
 
         # Map each player to this match_id
         for p in players:
             self.player_matches[p] = match_id
 
-        # Notify all players that FFA game has started
+        # Notify all players that FFA game lobby has matched
         start_payload = json.dumps({
             "type": "ffa_matched",
             "match_id": match_id,
@@ -368,7 +378,88 @@ class MatchmakingManager:
         if self.ffa_lobbies.get(exercise_id, {}).get("match_id") == match_id:
             del self.ffa_lobbies[exercise_id]
 
-        print(f"🚀 FFA Match #{match_id} started for exercise '{exercise_id}' with {len(players)} players: {players}")
+        # Start authoritative server-side match timer task for FFA
+        async def ffa_match_timer_task(m_id: str):
+            await asyncio.sleep(MATCH_DURATION + 35)
+            m = self.get_match(m_id)
+            if m and m.get("status") in ("waiting", "ready", "in_progress"):
+                await self.finish_ffa_match(m_id)
+
+        match_obj["timer_task"] = asyncio.create_task(ffa_match_timer_task(match_id))
+        print(f"🚀 FFA Match #{match_id} created for exercise '{exercise_id}' with {len(players)} players: {players}")
+
+    async def finish_ffa_match(self, match_id: str):
+        """Authoritatively ends an FFA match from server side and broadcasts results."""
+        match = self.get_match(match_id)
+        if not match or match.get("status") == "completed":
+            return
+
+        match["status"] = "completed"
+        leaderboard = [
+            {"username": pid, "score": sc}
+            for pid, sc in match["scores"].items()
+        ]
+        leaderboard.sort(key=lambda x: x["score"], reverse=True)
+
+        end_payload = json.dumps({
+            "type": "ffa_game_end",
+            "match_id": match_id,
+            "leaderboard": leaderboard,
+            "sender": "server",
+        })
+
+        for pid in match.get("players", []):
+            p_ws = self.connection_mgr.get(pid)
+            if p_ws:
+                try:
+                    await p_ws.send_text(end_payload)
+                except Exception:
+                    pass
+
+        async def delayed_ffa_cleanup(m_id: str):
+            await asyncio.sleep(60)
+            m = self.get_match(m_id)
+            if m and m.get("status") == "completed":
+                await self.remove_match(m_id, reason="ffa_completed")
+
+        asyncio.create_task(delayed_ffa_cleanup(match_id))
+
+    async def finish_1v1_match(self, match_id: str):
+        """Authoritatively ends a 1v1 match from server side and broadcasts final scores."""
+        match = self.get_match(match_id)
+        if not match or match.get("status") == "completed":
+            return
+
+        match["status"] = "completed"
+        p1_id = match.get("player1_id")
+        p2_id = match.get("player2_id")
+        final_p1_score = match.get("player1_score", 0)
+        final_p2_score = match.get("player2_score", 0)
+
+        end_payload = json.dumps({
+            "type": "game_end",
+            "match_id": match_id,
+            "player1_score": final_p1_score,
+            "player2_score": final_p2_score,
+            "sender": "server",
+        })
+
+        for pid in (p1_id, p2_id):
+            if pid:
+                p_ws = self.connection_mgr.get(pid)
+                if p_ws:
+                    try:
+                        await p_ws.send_text(end_payload)
+                    except Exception:
+                        pass
+
+        async def delayed_1v1_cleanup(m_id: str):
+            await asyncio.sleep(60)
+            m = self.get_match(m_id)
+            if m and m.get("status") == "completed":
+                await self.remove_match(m_id, reason="match_completed")
+
+        asyncio.create_task(delayed_1v1_cleanup(match_id))
 
     def join_queue(self, user_id: str, exercise_id: str):
         """Adds a player to a standard 1v1 queue. If 2 players are present, creates a new unique match."""
@@ -390,9 +481,10 @@ class MatchmakingManager:
 
             # Generate separate, collision-free UUID match_id
             match_id = str(uuid.uuid4())
+            now = time.time()
 
-            # Authoritative match state
-            self.matches[match_id] = {
+            # Authoritative match state with proper lifecycle and timing
+            match_obj = {
                 "match_id": match_id,
                 "exercise_id": exercise_id,
                 "mode": "1v1",
@@ -402,17 +494,30 @@ class MatchmakingManager:
                 "player2_score": 0,
                 "player1_ready": False,
                 "player2_ready": False,
-                "status": "in_progress",
-                "created_at": time.time(),
-                "last_update_p1": time.time(),
-                "last_update_p2": time.time(),
+                "status": "waiting",  # waiting -> in_progress (on ready) -> completed
+                "created_at": now,
+                "started_at": now,
+                "ends_at": now + MATCH_DURATION + 30,  # 30s setup + 120s match
+                "rematch_votes": set(),
+                "last_update_p1": now,
+                "last_update_p2": now,
             }
+            self.matches[match_id] = match_obj
 
             # Map both players to this match_id
             self.player_matches[p1_id] = match_id
             self.player_matches[p2_id] = match_id
 
-            print(f"🔗 Authoritative Match #{match_id} started for '{exercise_id}' between {p1_id} and {p2_id}")
+            # Start authoritative server-side match timer task for 1v1
+            async def match_timer_task(m_id: str):
+                await asyncio.sleep(MATCH_DURATION + 35)
+                m = self.get_match(m_id)
+                if m and m.get("status") in ("waiting", "ready", "in_progress"):
+                    await self.finish_1v1_match(m_id)
+
+            match_obj["timer_task"] = asyncio.create_task(match_timer_task(match_id))
+
+            print(f"🔗 Authoritative Match #{match_id} created for '{exercise_id}' between {p1_id} and {p2_id}")
             return match_id, p1_id, p2_id
 
         return None, None, None
@@ -630,6 +735,15 @@ async def match_websocket(ws: WebSocket):
             if not match:
                 continue
 
+            # Check if match has exceeded authoritative deadline
+            now_ts = time.time()
+            if match.get("status") == "in_progress" and now_ts >= match.get("ends_at", now_ts + 1):
+                if match.get("mode") == "ffa":
+                    await matchmaker.finish_ffa_match(active_match_id)
+                else:
+                    await matchmaker.finish_1v1_match(active_match_id)
+                continue
+
             is_ffa = (match.get("mode") == "ffa")
 
             if is_ffa:
@@ -639,8 +753,21 @@ async def match_websocket(ws: WebSocket):
                     continue
 
                 if msg_type == "score":
-                    raw_score = int(msg.get("score", 0))
-                    score_val = max(0, min(1000, raw_score))
+                    try:
+                        raw_score = int(msg.get("score"))
+                    except (TypeError, ValueError):
+                        continue
+
+                    # Only accept scores during active gameplay (waiting/setup or in_progress)
+                    if match.get("status") == "completed":
+                        continue
+
+                    # Reject negative or backwards score updates
+                    prev_score = match["scores"].get(user_id, 0)
+                    if raw_score < prev_score:
+                        continue
+
+                    score_val = min(1000, raw_score)
                     match["scores"][user_id] = score_val
 
                     # Generate sorted live leaderboard: highest score / reps first
@@ -672,6 +799,12 @@ async def match_websocket(ws: WebSocket):
                     ready_players.add(user_id)
                     all_ready = len(ready_players) >= len(players)
 
+                    if all_ready and match.get("status") == "waiting":
+                        match["status"] = "in_progress"
+                        now_start = time.time()
+                        match["started_at"] = now_start
+                        match["ends_at"] = now_start + MATCH_DURATION + 30
+
                     ready_payload = json.dumps({
                         "type": "ffa_ready_update",
                         "match_id": active_match_id,
@@ -689,35 +822,9 @@ async def match_websocket(ws: WebSocket):
                                 pass
 
                 elif msg_type == "game_end":
-                    match["status"] = "completed"
-                    leaderboard = [
-                        {"username": pid, "score": sc}
-                        for pid, sc in match["scores"].items()
-                    ]
-                    leaderboard.sort(key=lambda x: x["score"], reverse=True)
-
-                    end_payload = json.dumps({
-                        "type": "ffa_game_end",
-                        "match_id": active_match_id,
-                        "leaderboard": leaderboard,
-                        "sender": user_id,
-                    })
-
-                    for pid in players:
-                        p_ws = conn_manager.get(pid)
-                        if p_ws:
-                            try:
-                                await p_ws.send_text(end_payload)
-                            except Exception:
-                                pass
-
-                    async def delayed_ffa_cleanup(m_id: str):
-                        await asyncio.sleep(60)
-                        m = matchmaker.get_match(m_id)
-                        if m and m.get("status") == "completed":
-                            await matchmaker.remove_match(m_id, reason="ffa_completed")
-
-                    asyncio.create_task(delayed_ffa_cleanup(active_match_id))
+                    # Client game_end is treated as a completion request: finish match authoritatively
+                    if match.get("status") != "completed":
+                        await matchmaker.finish_ffa_match(active_match_id)
 
             else:
                 # Standard 1v1 Match Logic
@@ -735,9 +842,19 @@ async def match_websocket(ws: WebSocket):
                     continue
 
                 if msg_type == "score":
-                    raw_score = int(msg.get("score", 0))
-                    score_val = max(0, min(1000, raw_score))
+                    try:
+                        raw_score = int(msg.get("score"))
+                    except (TypeError, ValueError):
+                        continue
 
+                    if match.get("status") == "completed":
+                        continue
+
+                    previous = match.get("player1_score", 0) if is_p1 else match.get("player2_score", 0)
+                    if raw_score < previous:
+                        continue
+
+                    score_val = min(1000, raw_score)
                     now = time.time()
                     if is_p1:
                         match["player1_score"] = score_val
@@ -759,6 +876,13 @@ async def match_websocket(ws: WebSocket):
                     else:
                         match["player2_ready"] = True
 
+                    # Transition to in_progress and reset authoritative timer once both players are ready
+                    if match.get("player1_ready") and match.get("player2_ready") and match.get("status") == "waiting":
+                        match["status"] = "in_progress"
+                        now_start = time.time()
+                        match["started_at"] = now_start
+                        match["ends_at"] = now_start + MATCH_DURATION + 30
+
                     await opponent_ws.send_text(json.dumps({
                         "type": "peer_ready",
                         "match_id": active_match_id,
@@ -768,40 +892,40 @@ async def match_websocket(ws: WebSocket):
                 elif msg_type == "frame":
                     frame_data = msg.get("data")
                     if frame_data and isinstance(frame_data, str):
-                        await opponent_ws.send_text(json.dumps({
-                            "type": "frame",
-                            "match_id": active_match_id,
-                            "data": frame_data,
-                        }))
+                        try:
+                            await opponent_ws.send_text(json.dumps({
+                                "type": "frame",
+                                "match_id": active_match_id,
+                                "data": frame_data,
+                            }))
+                        except Exception:
+                            pass
 
                 elif msg_type == "game_end":
-                    match["status"] = "completed"
-                    final_p1_score = match.get("player1_score", 0)
-                    final_p2_score = match.get("player2_score", 0)
-
-                    await opponent_ws.send_text(json.dumps({
-                        "type": "game_end",
-                        "match_id": active_match_id,
-                        "player1_score": final_p1_score,
-                        "player2_score": final_p2_score,
-                        "sender": user_id,
-                    }))
-
-                    async def delayed_match_cleanup(m_id: str):
-                        await asyncio.sleep(60)
-                        m = matchmaker.get_match(m_id)
-                        if m and m.get("status") == "completed":
-                            await matchmaker.remove_match(m_id, reason="match_completed")
-
-                    asyncio.create_task(delayed_match_cleanup(active_match_id))
+                    # Client game_end is treated as a request: trigger authoritative match finish
+                    if match.get("status") != "completed":
+                        await matchmaker.finish_1v1_match(active_match_id)
 
                 elif msg_type in ("rematch_request", "rematch_accepted", "rematch_declined"):
-                    if msg_type == "rematch_accepted":
-                        match["player1_score"] = 0
-                        match["player2_score"] = 0
-                        match["player1_ready"] = False
-                        match["player2_ready"] = False
-                        match["status"] = "in_progress"
+                    rematch_votes = match.setdefault("rematch_votes", set())
+
+                    if msg_type == "rematch_request":
+                        rematch_votes.add(user_id)
+                    elif msg_type == "rematch_accepted":
+                        rematch_votes.add(user_id)
+                        # Require both players to have accepted before restarting match
+                        if len(rematch_votes) >= 2:
+                            rematch_votes.clear()
+                            now = time.time()
+                            match["player1_score"] = 0
+                            match["player2_score"] = 0
+                            match["player1_ready"] = False
+                            match["player2_ready"] = False
+                            match["status"] = "waiting"
+                            match["started_at"] = now
+                            match["ends_at"] = now + MATCH_DURATION + 30
+                    elif msg_type == "rematch_declined":
+                        rematch_votes.clear()
 
                     await opponent_ws.send_text(json.dumps({
                         "type": msg_type,
@@ -810,7 +934,7 @@ async def match_websocket(ws: WebSocket):
                     }))
 
     except WebSocketDisconnect:
-        conn_manager.unregister(user_id)
+        conn_manager.unregister(user_id, ws)
         await matchmaker.handle_leave(user_id, exercise_id)
         print(f"\n🔌 User {user_id} disconnected from matchmaking")
 
@@ -840,17 +964,19 @@ class StreamManager:
         if not self.streams[username]["senders"] and not self.streams[username]["viewers"]:
             del self.streams[username]
 
-    def broadcast_to_viewers(self, username, msg):
+    async def broadcast_to_viewers(self, username, msg):
         if username not in self.streams:
             return
-        viewers = self.streams[username]["viewers"]
+        viewers = list(self.streams[username]["viewers"])
+        dead_viewers = []
         for viewer_ws in viewers:
             try:
-                if viewer_ws.application_state == "connected":
-                    import asyncio
-                    asyncio.create_task(viewer_ws.send_text(msg))
-            except Exception as e:
-                print(f"📡 Error broadcasting to viewer: {e}")
+                await viewer_ws.send_text(msg)
+            except Exception:
+                dead_viewers.append(viewer_ws)
+
+        for dead_ws in dead_viewers:
+            self.remove_connection(username, dead_ws)
 
 stream_manager = StreamManager()
 
@@ -874,7 +1000,7 @@ async def stream_websocket(ws: WebSocket, username: str):
         while True:
             msg = await ws.receive_text()
             if role == "sender":
-                stream_manager.broadcast_to_viewers(username, msg)
+                await stream_manager.broadcast_to_viewers(username, msg)
             else:
                 await ws.send_text(json.dumps({"type": "error", "msg": "Viewers cannot send stream data"}))
     except WebSocketDisconnect:

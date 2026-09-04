@@ -179,9 +179,10 @@ export const fetchQueueCounts = async (): Promise<QueueCounts> => {
   try {
     const res = await fetch(`${BACKEND_URL}/api/online`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    return await res.json();
   } catch (e) {
-    return { total_online: 1, exercise_counts: {} };
+    console.warn('[Matchmaking] Failed to fetch online counts:', e);
+    return { total_online: 0, exercise_counts: {} };
   }
 };
 
@@ -192,33 +193,54 @@ let presenceSocket: WebSocket | null = null;
 export const connectPresenceSocket = (userId?: string) => {
   try {
     const url = `${getWsUrl(BACKEND_URL)}/ws/presence`;
-    presenceSocket = new WebSocket(url);
+    if (presenceSocket && presenceSocket.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-    presenceSocket.onopen = () => {
-      presenceSocket?.send(
+    const ws = new WebSocket(url);
+    presenceSocket = ws;
+
+    ws.onopen = () => {
+      if (presenceSocket !== ws) return;
+      ws.send(
         JSON.stringify({
           user_id: userId || `anon_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         })
       );
     };
 
-    presenceSocket.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (presenceSocket !== ws) return;
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'online') {
-          connectListeners.forEach((cb) => cb({ total_online: msg.total, exercise_counts: {} }));
+          connectListeners.forEach((cb) => cb({ total_online: msg.total, exercise_counts: msg.exercise_counts || {} }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[Presence] Failed to parse message:', e);
+      }
     };
 
-    presenceSocket.onerror = () => {};
-    presenceSocket.onclose = () => {};
-  } catch (e) {}
+    ws.onerror = (event) => {
+      console.warn('[Presence] WebSocket error:', event);
+    };
+
+    ws.onclose = (event) => {
+      console.log(`[Presence] WebSocket closed (code: ${event.code})`);
+      if (presenceSocket === ws) {
+        presenceSocket = null;
+      }
+    };
+  } catch (e) {
+    console.error('[Presence] Failed to connect:', e);
+  }
 };
 
 export const disconnectPresenceSocket = () => {
   if (presenceSocket) {
-    presenceSocket.close();
+    try {
+      presenceSocket.close();
+    } catch (e) {}
     presenceSocket = null;
   }
 };

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ojas",
-    "slug": "ojas",
+    "slug": "expo-camera-test",
     "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "dark",
