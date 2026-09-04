@@ -341,7 +341,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E2F163" />
+        <ActivityIndicator size="large" color="#E8D5C4" />
         <Text style={styles.loadingText}>Loading athlete profile...</Text>
       </View>
     );
@@ -445,8 +445,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#E2F163"
-            colors={['#E2F163', '#C8B6FF']}
+            tintColor="#E8D5C4"
+            colors={['#E8D5C4', '#C8B6FF']}
           />
         }
       >
@@ -819,7 +819,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
 
             <View style={styles.infoTipBox}>
-              <Info size={18} color="#E2F163" style={{ marginRight: 10 }} />
+              <Info size={18} color="#E8D5C4" style={{ marginRight: 10 }} />
               <Text style={styles.infoTipText}>
                 Once the athlete accepts your request from their profile, you will be able to start private 1v1 duels and compare workout milestones!
               </Text>
@@ -834,13 +834,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
     gap: 12,
   },
   loadingText: {
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   backButtonCircle: {
     width: 40,
@@ -872,16 +872,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   editButton: {
-    backgroundColor: '#E2F163', // Neon lime edit button
+    backgroundColor: '#E25822',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   editButtonActive: {
-    backgroundColor: '#C8B6FF',
+    backgroundColor: '#354394',
   },
   editButtonText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -902,13 +902,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.04)',
   },
   subTabItemActive: {
-    backgroundColor: '#FFFFFF', // Active white pill
+    backgroundColor: '#FFFFFF',
   },
   subTabText: {
     color: '#8E95A0',
@@ -938,12 +936,10 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
   heroCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 28,
     padding: 22,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 16,
   },
   avatarWrapper: {
@@ -957,11 +953,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#161B22',
+    borderColor: '#262A32',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -971,7 +967,7 @@ const styles = StyleSheet.create({
   uploadPhotoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     paddingVertical: 7,
     paddingHorizontal: 16,
     borderRadius: 20,
@@ -979,7 +975,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   uploadPhotoBtnText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -990,7 +986,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   heroUsername: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
@@ -1004,22 +1000,20 @@ const styles = StyleSheet.create({
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
   badgeText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
   },
   sectionCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 26,
     padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 16,
   },
   sectionHeader: {
@@ -1045,18 +1039,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   randomizeUsernameBtn: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
   randomizeUsernameBtnText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '900',
   },
   input: {
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
@@ -1067,7 +1061,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inputDisabled: {
-    backgroundColor: 'rgba(33, 38, 49, 0.5)',
+    backgroundColor: 'rgba(50, 55, 66, 0.5)',
     borderColor: 'rgba(255, 255, 255, 0.04)',
     color: '#CBD5E1',
   },
@@ -1109,31 +1103,27 @@ const styles = StyleSheet.create({
   headerActionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
   },
   headerActionPillText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
   },
   emptyCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 24,
     padding: 28,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   emptyCardMini: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 20,
     padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
     marginBottom: 10,
   },
   emptyCardTitle: {
@@ -1151,22 +1141,20 @@ const styles = StyleSheet.create({
   addFriendPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 10,
     marginTop: 16,
   },
   addFriendPrimaryBtnText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
   },
   friendListCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
   },
   friendRow: {
@@ -1187,7 +1175,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   friendUsername: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 12,
     fontWeight: '700',
     marginTop: 1,
@@ -1214,7 +1202,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   acceptBtn: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 12,
     padding: 8,
     alignItems: 'center',
@@ -1254,7 +1242,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     borderRadius: 16,
     paddingHorizontal: 12,
   },
@@ -1269,14 +1257,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   sendRequestBtn: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 16,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendRequestBtnText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
   },

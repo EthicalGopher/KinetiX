@@ -289,7 +289,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       {/* 3. DYNAMIC TUTORIALS & GUIDES SECTION */}
       <View style={styles.sectionHeaderRow}>
         <View style={styles.headerLeftRow}>
-          <Lightbulb size={14} color="#E2F163" style={{ marginRight: 6 }} />
+          <Lightbulb size={14} color="#E8D5C4" style={{ marginRight: 6 }} />
           <Text style={styles.sectionHeaderTitle}>TUTORIALS & GUIDES</Text>
         </View>
         <Text style={styles.sectionSubHint}>Tap cards for guide</Text>
@@ -342,7 +342,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Tutorial 3: Camera Positioning (Dark Card with Lime Accents) */}
+      {/* Tutorial 3: Camera Positioning (Dark Card with Warm Accents) */}
       <TouchableOpacity
         style={styles.tutorialFullCard}
         activeOpacity={0.88}
@@ -350,7 +350,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       >
         <View style={styles.tutorialFullBody}>
           <View style={styles.tutorialIconBox}>
-            <Smartphone size={22} color="#E2F163" />
+            <Smartphone size={22} color="#E8D5C4" />
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
             <View style={styles.fullCardBadgeRow}>
@@ -370,7 +370,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
       {/* 4. ONLINE FRIENDS SECTION */}
       <View style={styles.sectionHeaderRow}>
         <View style={styles.headerLeftRow}>
-          <Users size={14} color="#E2F163" style={{ marginRight: 6 }} />
+          <Users size={14} color="#E8D5C4" style={{ marginRight: 6 }} />
           <Text style={styles.sectionHeaderTitle}>ONLINE ATHLETES</Text>
         </View>
         <View style={styles.onlineBadgePill}>
@@ -391,7 +391,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
           onPress={() => onNavigateToTab?.('profile')}
         >
           <View style={styles.addFriendCircle}>
-            <UserPlus size={22} color="#E2F163" />
+            <UserPlus size={22} color="#E8D5C4" />
             <View style={styles.plusIconBadge}>
               <Plus size={10} color="#11141A" strokeWidth={3} />
             </View>
@@ -416,7 +416,6 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
                 config={item.friend.avatar_config}
                 avatarUrl={item.friend.avatar_url}
               />
-              <View style={styles.onlinePresenceDot} />
             </View>
             <Text style={styles.avatarLabel} numberOfLines={1}>
               {item.friend.username}
@@ -432,7 +431,6 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
           >
             <View style={[styles.avatarWrapper, styles.placeholderFriendCircle]}>
               <Avatar username="ojas_bot" size={54} />
-              <View style={styles.onlinePresenceDot} />
             </View>
             <Text style={styles.avatarLabel} numberOfLines={1}>
               OjasBot
@@ -440,44 +438,6 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
           </TouchableOpacity>
         )}
       </ScrollView>
-
-      {/* 5. LIVE AI CAMERA PRACTICE CARD */}
-      <TouchableOpacity
-        style={styles.aiTrackerCard}
-        activeOpacity={0.9}
-        onPress={() => onOpenCamera(activeExercise?.id, activeExercise?.name)}
-      >
-        <View style={styles.aiCardBody}>
-          <View style={styles.aiIconCircle}>
-            <Camera size={24} color="#11141A" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.aiCardTitle}>Live Camera Practice</Text>
-            <Text style={styles.aiCardSubtitle}>
-              MediaPipe real-time skeleton tracker & parallel depth validation ({selectedModel})
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.aiCardFooter}>
-          <TouchableOpacity
-            style={styles.settingsPill}
-            activeOpacity={0.8}
-            onPress={(e) => {
-              e.stopPropagation();
-              onSettingsPress();
-            }}
-          >
-            <Settings size={13} color="#9CA3AF" style={{ marginRight: 4 }} />
-            <Text style={styles.settingsPillText}>Settings</Text>
-          </TouchableOpacity>
-
-          <View style={styles.launchPill}>
-            <Text style={styles.launchPillText}>Open Camera</Text>
-            <ChevronRight size={14} color="#11141A" style={{ marginLeft: 2 }} />
-          </View>
-        </View>
-      </TouchableOpacity>
 
       {/* TUTORIAL DETAILS MODAL */}
       <Modal
@@ -508,7 +468,7 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
               {selectedTutorial?.steps.map((step, idx) => (
                 <View key={idx} style={styles.modalStepRow}>
                   <View style={styles.stepNumberBadge}>
-                    <CheckCircle2 size={16} color="#E2F163" />
+                    <CheckCircle2 size={16} color="#E8D5C4" />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.stepTitle}>{step.title}</Text>
@@ -535,18 +495,18 @@ export const HomeFeedScreen: React.FC<HomeFeedScreenProps> = ({
 const styles = StyleSheet.create({
   feedScrollView: {
     flex: 1,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   feedScrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 110,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 130,
   },
   calendarCard: {
     backgroundColor: '#161B22',
     borderRadius: 24,
-    padding: 16,
-    marginBottom: 14,
+    padding: 18,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
   },
@@ -567,7 +527,7 @@ const styles = StyleSheet.create({
   todayPillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#212631',
+    backgroundColor: '#262A32',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -577,10 +537,10 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
   },
   todayPillText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 10,
     fontWeight: '900',
   },
@@ -601,7 +561,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   dayLetterActive: {
-    color: '#E2F163',
+    color: '#E25822',
   },
   dateCircle: {
     width: 32,
@@ -612,7 +572,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dateCircleActive: {
-    backgroundColor: '#E2F163', // Neon lime date highlight
+    backgroundColor: '#E25822',
   },
   dateNumber: {
     color: '#CBD5E1',
@@ -620,17 +580,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dateNumberActive: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontWeight: '900',
   },
   heroLimeCard: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 26,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#E2F163',
+    padding: 22,
+    marginBottom: 24,
+    shadowColor: '#E25822',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 6,
   },
@@ -646,10 +606,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   heroProgressTag: {
-    color: '#374151',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -658,21 +618,21 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(17, 20, 26, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroMainTitle: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 4,
   },
   heroSubTitle: {
-    color: '#374151',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 4,
   },
   caloriesBadgePill: {
     flexDirection: 'row',
@@ -680,9 +640,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#11141A',
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     alignSelf: 'flex-start',
-    marginTop: 14,
+    marginTop: 16,
   },
   caloriesBadgeText: {
     color: '#FFFFFF',
@@ -690,7 +650,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   heroLimeRight: {
-    marginLeft: 12,
+    marginLeft: 14,
   },
   athleteVisualCircle: {
     width: 72,
@@ -707,8 +667,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 14,
   },
   headerLeftRow: {
     flexDirection: 'row',
@@ -727,15 +687,15 @@ const styles = StyleSheet.create({
   },
   tutorialGridRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    gap: 14,
+    marginBottom: 16,
   },
   tutorialCard: {
     flex: 1,
     borderRadius: 24,
-    padding: 16,
+    padding: 18,
     justifyContent: 'space-between',
-    minHeight: 156,
+    minHeight: 164,
   },
   tutorialCardLavender: {
     backgroundColor: '#C8B6FF', // Soft pastel lavender
@@ -747,7 +707,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   tutorialBadgeDark: {
     backgroundColor: 'rgba(17, 20, 26, 0.1)',
@@ -769,14 +729,14 @@ const styles = StyleSheet.create({
   tutorialCardDescDark: {
     color: '#374151',
     fontSize: 11,
-    lineHeight: 15,
+    lineHeight: 16,
     fontWeight: '600',
     marginTop: 4,
   },
   readGuideRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   readGuideTextDark: {
     color: '#11141A',
@@ -785,12 +745,10 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   tutorialFullCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 24,
-    padding: 16,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 18,
+    marginBottom: 26,
   },
   tutorialFullBody: {
     flexDirection: 'row',
@@ -800,12 +758,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     alignItems: 'center',
     justifyContent: 'center',
   },
   fullCardBadgeRow: {
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(226, 88, 34, 0.15)',
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -813,7 +771,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   fullCardBadgeText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 9,
     fontWeight: '900',
   },
@@ -826,13 +784,13 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 11,
     marginTop: 2,
-    lineHeight: 15,
+    lineHeight: 16,
   },
   fullCardArrowCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
@@ -840,9 +798,9 @@ const styles = StyleSheet.create({
   onlineBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(226, 88, 34, 0.15)',
     borderWidth: 1,
-    borderColor: '#E2F163',
+    borderColor: '#E25822',
     borderRadius: 14,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -852,16 +810,17 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
   },
   onlineBadgeText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 11,
     fontWeight: '800',
   },
   horizontalAvatarRow: {
-    gap: 14,
-    marginBottom: 18,
+    gap: 16,
+    paddingVertical: 4,
+    marginBottom: 24,
   },
   avatarItem: {
     alignItems: 'center',
@@ -887,18 +846,18 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderWidth: 2,
-    borderColor: '#0C0F14',
+    borderColor: '#1A1C20',
   },
   addFriendCircle: {
     position: 'relative',
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderWidth: 1.5,
-    borderColor: '#E2F163',
+    borderColor: '#E25822',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -910,7 +869,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -922,11 +881,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   aiTrackerCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 24,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   aiCardBody: {
     flexDirection: 'row',
@@ -936,7 +893,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -963,7 +920,7 @@ const styles = StyleSheet.create({
   settingsPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -976,13 +933,13 @@ const styles = StyleSheet.create({
   launchPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   launchPillText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -994,13 +951,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   tutorialModalCard: {
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 28,
     padding: 22,
     width: '100%',
     maxWidth: 380,
     borderWidth: 1.5,
-    borderColor: '#E2F163',
+    borderColor: '#E25822',
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -1009,15 +966,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalBadgePill: {
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(226, 88, 34, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.3)',
+    borderColor: 'rgba(226, 88, 34, 0.3)',
   },
   modalBadgeText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -1025,7 +982,7 @@ const styles = StyleSheet.create({
   modalCloseBtn: {
     padding: 6,
     borderRadius: 12,
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
   },
   modalTitle: {
     color: '#FFFFFF',
@@ -1045,7 +1002,7 @@ const styles = StyleSheet.create({
   modalStepRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     borderRadius: 16,
     padding: 12,
     marginBottom: 10,
@@ -1065,14 +1022,14 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   gotItButton: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 18,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 14,
   },
   gotItButtonText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
   },

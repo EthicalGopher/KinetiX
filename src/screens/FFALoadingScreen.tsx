@@ -16,12 +16,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const LOADING_ANIMATION = require('../../assets/Videoes/loading_animation.gif');
 
 const COLORS = {
-  background: '#0B0D12',
-  track: '#191D26',
+  background: '#1A1C20',
+  track: '#262A32',
   textPrimary: '#F2F3F5',
   textSecondary: '#8B909C',
   textTertiary: '#585D68',
-  accent: '#E2F163', // Neon Lime
+  accent: '#E25822',
   coral: '#FF6B6B',
 };
 

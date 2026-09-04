@@ -85,7 +85,7 @@ export const GetStartedScreen: React.FC<GetStartedScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0D111A',
+    backgroundColor: '#1A1C20',
   },
   container: {
     flex: 1,
@@ -139,20 +139,20 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   getStartedButton: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     width: '100%',
     paddingVertical: 16,
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#E2F163',
+    shadowColor: '#E25822',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 14,
     elevation: 6,
   },
   getStartedButtonText: {
-    color: '#11141A',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.2,
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loginLink: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 13.5,
     fontWeight: '800',
   },

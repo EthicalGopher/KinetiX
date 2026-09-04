@@ -271,6 +271,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onDetailTabChange={setDetailSubTab}
           onStartCustomMatch={handleStartCustomMatch}
           onOpenCamera={onOpenCamera}
+          onSettingsPress={() => setShowSettingsModal(true)}
         />
       );
     }
@@ -403,24 +404,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0C0F14' },
-  subNavBar: { flexDirection: 'row', height: 44, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0C0F14' },
+  container: { flex: 1, backgroundColor: '#1A1C20' },
+  subNavBar: { flexDirection: 'row', height: 44, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#1A1C20' },
   subNavTab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  subNavTabActive: { borderBottomColor: '#E2F163' },
+  subNavTabActive: { borderBottomColor: '#E8D5C4' },
   subNavTabText: { color: '#8E95A0', fontSize: 13, fontWeight: '700', letterSpacing: 0.8 },
-  subNavTabTextActive: { color: '#E2F163' },
+  subNavTabTextActive: { color: '#E8D5C4' },
   newsTabRow: { flexDirection: 'row', alignItems: 'center' },
   redBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginLeft: 6 },
   mainContent: { flex: 1 },
   devContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
   devCard: { backgroundColor: '#161F30', borderRadius: 24, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  devIconBadge: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(226, 241, 99, 0.15)', borderWidth: 1, borderColor: 'rgba(226, 241, 99, 0.3)', alignItems: 'center', justifyContent: 'center' },
+  devIconBadge: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(232, 213, 196, 0.15)', borderWidth: 1, borderColor: 'rgba(232, 213, 196, 0.3)', alignItems: 'center', justifyContent: 'center' },
   devIconText: { fontSize: 28 },
   devTitle: { color: '#FFF', fontSize: 22, fontWeight: '800', marginTop: 16 },
   devPillTag: { marginTop: 10, backgroundColor: 'rgba(245, 158, 11, 0.15)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' },
   devPillTagText: { color: '#FBBF24', fontSize: 11, fontWeight: '700' },
   devSubtitle: { color: '#8E95A0', textAlign: 'center', lineHeight: 20, marginTop: 14, fontSize: 13 },
-  devBackButton: { marginTop: 20, backgroundColor: '#E2F163', borderRadius: 20, paddingHorizontal: 22, paddingVertical: 12 },
+  devBackButton: { marginTop: 20, backgroundColor: '#E8D5C4', borderRadius: 20, paddingHorizontal: 22, paddingVertical: 12 },
   devBackButtonText: { color: '#11141A', fontWeight: '800', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(5, 8, 14, 0.82)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   modalCard: { width: '100%', maxWidth: 400, backgroundColor: '#161F30', borderRadius: 28, padding: 20, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.45, shadowRadius: 20, elevation: 10 },
@@ -431,15 +432,15 @@ const styles = StyleSheet.create({
   specCardTitle: { color: '#FFF', fontSize: 14, fontWeight: '800', marginBottom: 6 },
   specDetailText: { color: '#8E95A0', fontSize: 12.5, lineHeight: 18 },
   specHighlightText: { color: '#FFF', fontWeight: '700' },
-  specRecommendText: { color: '#E2F163', fontWeight: '800' },
+  specRecommendText: { color: '#E8D5C4', fontWeight: '800' },
   modelSectionHeading: { color: '#F8FAFC', fontSize: 15, fontWeight: '800', marginTop: 16, marginBottom: 8 },
   optionCard: { backgroundColor: '#0D111A', borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  optionCardSelected: { borderColor: '#E2F163', backgroundColor: 'rgba(226, 241, 99, 0.06)' },
+  optionCardSelected: { borderColor: '#E8D5C4', backgroundColor: 'rgba(232, 213, 196, 0.08)' },
   optionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   optionTitle: { color: '#FFF', fontSize: 14, fontWeight: '800' },
-  recommendBadge: { backgroundColor: 'rgba(226, 241, 99, 0.2)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(226, 241, 99, 0.35)' },
-  recommendBadgeText: { color: '#E2F163', fontSize: 10, fontWeight: '800' },
+  recommendBadge: { backgroundColor: 'rgba(232, 213, 196, 0.2)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(232, 213, 196, 0.35)' },
+  recommendBadgeText: { color: '#E8D5C4', fontSize: 10, fontWeight: '800' },
   optionDescription: { color: '#8E95A0', fontSize: 12, marginTop: 6, lineHeight: 17 },
-  saveSettingsButton: { marginTop: 16, backgroundColor: '#E2F163', borderRadius: 24, paddingVertical: 14, alignItems: 'center', shadowColor: '#E2F163', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
+  saveSettingsButton: { marginTop: 16, backgroundColor: '#E8D5C4', borderRadius: 24, paddingVertical: 14, alignItems: 'center', shadowColor: '#E8D5C4', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
   saveSettingsButtonText: { color: '#11141A', fontSize: 15, fontWeight: '900' },
 });

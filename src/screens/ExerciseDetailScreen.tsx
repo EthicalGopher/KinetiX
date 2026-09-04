@@ -16,6 +16,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  Dumbbell,
   Flame,
   Gamepad2,
   Info,
@@ -24,6 +25,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Settings,
   Shield,
   Sparkles,
   Swords,
@@ -37,7 +39,6 @@ import {
 } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { ExerciseIcon } from '../components/ExerciseIcon';
-import { Header } from '../components/Header';
 import { useUserStore } from '../store/userStore';
 import {
   calculateLevel,
@@ -79,6 +80,7 @@ interface ExerciseDetailScreenProps {
     customRoomId?: string
   ) => void;
   onOpenCamera?: (exerciseId?: string, exerciseName?: string) => void;
+  onSettingsPress?: () => void;
 }
 
 export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
@@ -89,6 +91,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
   onDetailTabChange,
   onStartCustomMatch,
   onOpenCamera,
+  onSettingsPress,
 }) => {
   const { profile, user, refreshProfile } = useUserStore();
   const [exerciseStats, setExerciseStats] = useState<UserExerciseStats | null>(null);
@@ -293,25 +296,31 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
     setActiveSentInvite(null);
   };
 
+  const [showRulesInfoModal, setShowRulesInfoModal] = useState<boolean>(false);
+
   return (
     <View style={styles.detailScreenContainer}>
-      <Header
-        leftAction={
-          <TouchableOpacity style={styles.backButtonCircle} activeOpacity={0.8} onPress={onBack}>
-            <ArrowLeft size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
-      />
+      {/* Top Navigation Bar with Back & Notification badge */}
+      <View style={styles.topNavBar}>
+        <TouchableOpacity style={styles.navButtonCircle} activeOpacity={0.8} onPress={onBack}>
+          <ArrowLeft size={18} color="#FFFFFF" />
+        </TouchableOpacity>
 
-      {/* HERO BANNER CARD (Neon Lime & Lavender Highlight Theme) */}
+        <View style={styles.notificationBadgePill}>
+          <View style={styles.notificationBadgeDot} />
+          <Text style={styles.notificationBadgeText}>1</Text>
+        </View>
+      </View>
+
+      {/* HERO BANNER CARD (Vibrant Purple Background #3B4CCA / #3949AB) */}
       <View style={styles.detailBannerCard}>
         <View style={styles.bannerTopRow}>
           <View style={styles.ratingBadge}>
             <ExerciseIcon
               imageUrl={exercise.image_url}
               icon={exercise.icon}
-              size={22}
-              fontSize={16}
+              size={18}
+              fontSize={13}
               containerStyle={{ marginRight: 6 }}
             />
             <Text style={styles.ratingLabel}>{exercise.name} Score</Text>
@@ -355,7 +364,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             </Text>
             <Text style={styles.progressSubLabel}>
               {levelInfo.level < 6
-                ? `${levelInfo.pointsToNext} pts to Level ${levelInfo.level + 1}`
+                ? `${levelInfo.pointsToNext || 90} pts to Level ${levelInfo.level + 1}`
                 : 'MAX LEVEL ⚡'}
             </Text>
           </View>
@@ -364,14 +373,14 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             <View
               style={[
                 styles.rankProgressFill,
-                { width: `${levelInfo.progressPercent}%` },
+                { width: `${Math.min(100, Math.max(0, levelInfo.progressPercent))}%` },
               ]}
             />
           </View>
         </View>
       </View>
 
-      {/* Sub Navigation Bar (Pill selector from reference) */}
+      {/* Sub Navigation Bar (Dark rounded pills) */}
       <View style={styles.detailSubNavTabBar}>
         <TouchableOpacity
           style={[styles.detailSubTabItem, detailTab === 'workouts' && styles.detailSubTabItemActive]}
@@ -442,26 +451,20 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#E2F163"
-            colors={['#E2F163', '#C8B6FF']}
+            tintColor="#E25822"
+            colors={['#E25822', '#3B4CCA']}
           />
         }
       >
         {detailTab === 'workouts' ? (
           <>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.matchmakingSectionHeader}>
-                {exercise.name.toUpperCase()} QUEUES
-              </Text>
-            </View>
-
-            {/* QUEUE CARDS IN MINIMAL CLEAN STYLE */}
+            {/* QUEUE CARDS MATCHING SCREENSHOT */}
             {[
               {
                 id: 'solo_practice',
                 title: 'Solo Practice',
                 description: 'AI form coaching & feedback',
-                iconComponent: <Camera size={20} color="#E2F163" />,
+                iconComponent: <Camera size={20} color="#FFFFFF" />,
                 actionText: 'START',
                 isFriendQueue: false,
                 isSoloMode: true,
@@ -471,7 +474,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 id: 'ffa',
                 title: 'Free For All',
                 description: '10-player live leaderboard match',
-                iconComponent: <Trophy size={20} color="#E2F163" />,
+                iconComponent: <Trophy size={20} color="#FFFFFF" />,
                 actionText: 'PLAY',
                 isFriendQueue: false,
                 isSoloMode: false,
@@ -482,7 +485,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 id: 'faceoff',
                 title: 'Faceoff',
                 description: '1v1 split-screen video duel',
-                iconComponent: <Video size={20} color="#E2F163" />,
+                iconComponent: <Video size={20} color="#FFFFFF" />,
                 actionText: 'PLAY',
                 isFriendQueue: false,
                 isSoloMode: false,
@@ -492,7 +495,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 id: 'quick_start',
                 title: 'Quick Duel',
                 description: '1v1 fast score battle',
-                iconComponent: <Zap size={20} color="#E2F163" />,
+                iconComponent: <Zap size={20} color="#FFFFFF" />,
                 actionText: 'PLAY',
                 isFriendQueue: false,
                 isSoloMode: false,
@@ -502,7 +505,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                 id: 'custom_friend',
                 title: 'Friend Battle',
                 description: 'Direct challenge with online friends',
-                iconComponent: <Users size={20} color="#E2F163" />,
+                iconComponent: <Users size={20} color="#FFFFFF" />,
                 actionText: 'PLAY',
                 isFriendQueue: true,
                 isSoloMode: false,
@@ -521,8 +524,10 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
                         {queue.title}
                       </Text>
                       {queue.badge && (
-                        <View style={styles.soloBadgePill}>
-                          <Text style={styles.soloBadgePillText}>{queue.badge}</Text>
+                        <View style={styles.queueBadgePill}>
+                          <Text style={styles.queueBadgePillText}>
+                            {queue.badge}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -595,7 +600,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
 
             {loadingLeaderboard ? (
               <View style={styles.centerLoadingBox}>
-                <ActivityIndicator size="small" color="#E2F163" />
+                <ActivityIndicator size="small" color="#E8D5C4" />
                 <Text style={styles.loadingLeaderboardText}>
                   Loading {exercise.name} rankings...
                 </Text>
@@ -683,7 +688,7 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
             <View style={styles.tabInfoCard}>
               <Text style={styles.tabInfoTitle}>⚡ {exercise.name} Scoring Rules</Text>
               <View style={styles.rulePointRow}>
-                <View style={[styles.rulePointBadge, { backgroundColor: '#E2F163' }]}>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#E8D5C4' }]}>
                   <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>+10 PTS</Text>
                 </View>
                 <Text style={styles.rulePointDesc}>Awarded for winning a {exercise.name} duel.</Text>
@@ -735,6 +740,64 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
           </View>
         )}
       </ScrollView>
+
+      {/* RULES INFO MODAL */}
+      <Modal
+        visible={showRulesInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRulesInfoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.infoModalCard}>
+            <View style={styles.friendModalHeader}>
+              <View style={styles.btnRow}>
+                <Info size={18} color="#E8D5C4" style={{ marginRight: 6 }} />
+                <Text style={styles.infoModalTitle}>
+                  {exercise.name.toUpperCase()} SCORING & RULES
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setShowRulesInfoModal(false)}
+              >
+                <X size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.infoModalBody}>
+              <View style={styles.rulePointRow}>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#E8D5C4' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>+10 PTS</Text>
+                </View>
+                <Text style={styles.rulePointDesc}>Awarded for winning a match.</Text>
+              </View>
+
+              <View style={styles.rulePointRow}>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#C8B6FF' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>+5 PTS</Text>
+                </View>
+                <Text style={styles.rulePointDesc}>Awarded to both players on draw.</Text>
+              </View>
+
+              <View style={styles.rulePointRow}>
+                <View style={[styles.rulePointBadge, { backgroundColor: '#FFD6E0' }]}>
+                  <Text style={[styles.rulePointBadgeText, { color: '#11141A' }]}>-10 PTS</Text>
+                </View>
+                <Text style={styles.rulePointDesc}>Deducted on defeat (minimum: 0 PTS).</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.infoModalCloseBtn}
+              activeOpacity={0.85}
+              onPress={() => setShowRulesInfoModal(false)}
+            >
+              <Text style={styles.infoModalCloseBtnText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* FRIEND CHALLENGE SELECTION MODAL */}
       <Modal
@@ -939,85 +1002,106 @@ export const ExerciseDetailScreen: React.FC<ExerciseDetailScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  detailScreenContainer: { flex: 1, backgroundColor: '#0C0F14' },
-  backButtonCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#181D26',
+  detailScreenContainer: { flex: 1, backgroundColor: '#1A1C20' },
+  topNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  navButtonCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2A2E35',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  notificationBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E25822',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  notificationBadgeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
+    marginRight: 4,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
   btnRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   detailBannerCard: {
-    backgroundColor: '#161B22',
-    borderRadius: 26,
+    backgroundColor: '#354394',
+    borderRadius: 22,
     marginHorizontal: 16,
     marginTop: 6,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 16,
   },
   bannerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
     gap: 8,
   },
   ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#212631',
-    borderRadius: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(26, 28, 35, 0.45)',
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   ratingLabel: { color: '#E2E8F0', fontSize: 12, fontWeight: '700' },
   ratingNumBox: {
-    backgroundColor: '#E2F163', // Neon lime score box
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: 'rgba(26, 28, 35, 0.7)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     marginLeft: 6,
   },
-  ratingNumText: { color: '#11141A', fontSize: 12, fontWeight: '900' },
+  ratingNumText: { color: '#E8D5C4', fontSize: 11, fontWeight: '900' },
   scoreRulesPill: {
-    backgroundColor: '#C8B6FF', // Soft lavender rules pill
+    backgroundColor: 'rgba(26, 28, 35, 0.55)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 10,
   },
-  scoreRulesText: { color: '#11141A', fontSize: 10, fontWeight: '800' },
+  scoreRulesText: { color: '#E8D5C4', fontSize: 10, fontWeight: '800' },
   bannerStatsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   starLevelBadge: {
-    backgroundColor: '#212631',
-    borderRadius: 16,
+    backgroundColor: 'rgba(26, 28, 35, 0.5)',
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E2F163',
   },
-  levelBadgeEmoji: { fontSize: 20 },
-  levelBadgeNumber: { fontSize: 11, fontWeight: '900', marginTop: 2, color: '#E2F163' },
+  levelBadgeEmoji: { fontSize: 22 },
+  levelBadgeNumber: { fontSize: 11, fontWeight: '900', marginTop: 4, color: '#FFFFFF' },
   userRankInfo: { marginLeft: 14, flex: 1 },
   rankTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rankTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
+  rankTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
   tierTag: {
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(26, 28, 35, 0.5)',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  tierTagText: { fontSize: 10, fontWeight: '800', color: '#E2F163' },
-  playedWonStats: { color: '#9CA3AF', fontSize: 11, marginTop: 3 },
+  tierTagText: { fontSize: 10, fontWeight: '800', color: '#E8D5C4' },
+  playedWonStats: { color: '#E2E8F0', fontSize: 11, marginTop: 4 },
   progressContainer: { marginTop: 14 },
   progressLabelRow: {
     flexDirection: 'row',
@@ -1025,18 +1109,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  progressLabel: { color: '#CBD5E1', fontSize: 11, fontWeight: '700' },
-  progressSubLabel: { color: '#E2F163', fontSize: 11, fontWeight: '800' },
+  progressLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  progressSubLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   rankProgressTrack: {
-    height: 8,
-    borderRadius: 6,
-    backgroundColor: '#212631',
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(26, 28, 35, 0.6)',
     overflow: 'hidden',
   },
-  rankProgressFill: { height: '100%', borderRadius: 6, backgroundColor: '#E2F163' },
+  rankProgressFill: { height: '100%', borderRadius: 4, backgroundColor: '#E25822' },
   detailSubNavTabBar: {
     flexDirection: 'row',
-    marginTop: 12,
+    marginTop: 14,
     paddingHorizontal: 16,
     gap: 8,
   },
@@ -1044,114 +1128,71 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#161B22',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: '#262A32',
   },
   detailSubTabItemActive: {
-    backgroundColor: '#FFFFFF', // Active white pill
+    backgroundColor: '#FFFFFF',
   },
-  detailSubTabText: { color: '#8E95A0', fontSize: 11, fontWeight: '800' },
+  detailSubTabText: { color: '#8E95A0', fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
   detailSubTabTextActive: { color: '#11141A' },
   detailScrollView: { flex: 1 },
-  detailScrollContent: { paddingHorizontal: 16, paddingBottom: 110 },
-  sectionHeaderRow: { marginTop: 16, marginBottom: 10 },
-  matchmakingSectionHeader: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
+  detailScrollContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 110 },
   queueItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161B22',
-    borderRadius: 26,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  queueItemCardLavender: {
-    backgroundColor: '#C8B6FF', // Highlighted lavender card
-    borderColor: 'transparent',
+    backgroundColor: '#262A32',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 10,
   },
   queueIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#212631',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#323742',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  queueIconBoxLavender: {
-    backgroundColor: 'rgba(17, 20, 26, 0.1)',
   },
   queueInfoBox: { flex: 1, marginLeft: 12, marginRight: 8 },
   queueTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   queueTitleText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-  queueTitleTextLavender: { color: '#11141A' },
   queueBadgePill: {
-    backgroundColor: '#212631',
-    paddingHorizontal: 8,
+    backgroundColor: 'rgba(26, 28, 35, 0.6)',
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  queueBadgePillLavender: {
-    backgroundColor: '#FFFFFF',
-  },
-  queueBadgePillText: { color: '#E2F163', fontSize: 9, fontWeight: '800' },
-  queueBadgePillTextLavender: { color: '#11141A' },
-  soloBadgePill: {
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.4)',
-  },
-  soloBadgePillText: {
-    color: '#E2F163',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  queueDescText: { color: '#9CA3AF', fontSize: 11, marginTop: 4, lineHeight: 15 },
-  queueDescTextLavender: { color: '#374151' },
+  queueBadgePillText: { color: '#E8D5C4', fontSize: 9, fontWeight: '900', letterSpacing: 0.3 },
+  queueDescText: { color: '#9CA3AF', fontSize: 11, marginTop: 3 },
   joinButton: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E25822',
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  soloJoinButton: {
-    backgroundColor: '#E2F163',
-  },
-  joinButtonLavender: {
-    backgroundColor: '#11141A',
-  },
-  joinButtonText: { color: '#11141A', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
-  soloJoinButtonText: { color: '#11141A' },
-  joinButtonTextLavender: { color: '#FFFFFF' },
+  joinButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
   leaderboardContainer: { marginTop: 14 },
   myRankCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#C8B6FF',
-    borderRadius: 24,
+    backgroundColor: '#354394',
+    borderRadius: 20,
     padding: 14,
     marginBottom: 16,
   },
   myRankLeft: { flexDirection: 'row', alignItems: 'center' },
   myRankInfo: { marginLeft: 10 },
-  myRankName: { color: '#11141A', fontSize: 15, fontWeight: '900' },
-  myRankTier: { color: '#374151', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  myRankName: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  myRankTier: { color: '#E2E8F0', fontSize: 11, fontWeight: '700', marginTop: 2 },
   myRankRight: { alignItems: 'flex-end' },
-  myRankPoints: { color: '#11141A', fontSize: 18, fontWeight: '900' },
-  myRankSub: { color: '#374151', fontSize: 11, marginTop: 2, fontWeight: '700' },
+  myRankPoints: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
+  myRankSub: { color: '#E2E8F0', fontSize: 11, marginTop: 2, fontWeight: '700' },
   standingsHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1164,7 +1205,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-  standingsRefreshText: { color: '#E2F163', fontSize: 12, fontWeight: '700' },
+  standingsRefreshText: { color: '#E25822', fontSize: 12, fontWeight: '700' },
   centerLoadingBox: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1174,12 +1215,10 @@ const styles = StyleSheet.create({
   loadingLeaderboardText: { color: '#9CA3AF', fontSize: 12 },
   emptyLeaderboardBox: {
     alignItems: 'center',
-    backgroundColor: '#161B22',
+    backgroundColor: '#262A32',
     borderRadius: 24,
     padding: 24,
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   emptyLeaderboardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 8 },
   emptyLeaderboardDesc: {
@@ -1190,10 +1229,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   leaderboardListBox: {
-    backgroundColor: '#161B22',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#262A32',
+    borderRadius: 20,
     overflow: 'hidden',
   },
   leaderboardRowItem: {
@@ -1204,26 +1241,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
-  top1Row: { backgroundColor: 'rgba(226, 241, 99, 0.06)' },
-  myHighlightRow: { backgroundColor: 'rgba(200, 182, 255, 0.1)' },
+  top1Row: { backgroundColor: 'rgba(226, 88, 34, 0.1)' },
+  myHighlightRow: { backgroundColor: 'rgba(53, 67, 148, 0.3)' },
   rankBadgeBox: { width: 34, alignItems: 'center', justifyContent: 'center' },
   podiumEmoji: { fontSize: 20 },
   rankNumberText: { color: '#8E95A0', fontSize: 13, fontWeight: '800' },
   leaderboardAvatarWrapper: { marginLeft: 4, marginRight: 10 },
   leaderboardNameBox: { flex: 1 },
   leaderboardUsername: { color: '#F8FAFC', fontSize: 14, fontWeight: '700' },
-  myUsernameText: { color: '#E2F163', fontWeight: '800' },
+  myUsernameText: { color: '#E25822', fontWeight: '800' },
   leaderboardSubText: { color: '#9CA3AF', fontSize: 11, marginTop: 2 },
   leaderboardScoreBox: { alignItems: 'flex-end' },
-  leaderboardScoreNum: { color: '#E2F163', fontSize: 15, fontWeight: '900' },
-  leaderboardScoreUnit: { color: '#6B7280', fontSize: 9, fontWeight: '800' },
+  leaderboardScoreNum: { color: '#E25822', fontSize: 15, fontWeight: '900' },
+  leaderboardScoreUnit: { color: '#8E95A0', fontSize: 9, fontWeight: '800' },
   rulesContainer: { marginTop: 14, gap: 12 },
   tabInfoCard: {
-    backgroundColor: '#161B22',
-    borderRadius: 24,
+    backgroundColor: '#262A32',
+    borderRadius: 20,
     padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   tabInfoTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', marginBottom: 12 },
   tabInfoBody: { color: '#CBD5E1', fontSize: 13, lineHeight: 20 },
@@ -1248,11 +1283,11 @@ const styles = StyleSheet.create({
   },
   tierCardItem: {
     width: '48%',
-    backgroundColor: '#212631',
+    backgroundColor: '#323742',
     borderRadius: 16,
     padding: 12,
   },
-  tierCardLvl: { color: '#E2F163', fontSize: 10, fontWeight: '800' },
+  tierCardLvl: { color: '#E25822', fontSize: 10, fontWeight: '800' },
   tierCardName: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginTop: 2 },
   tierCardRange: { color: '#9CA3AF', fontSize: 10, marginTop: 2 },
   modalOverlay: {
@@ -1262,8 +1297,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
+  infoModalCard: {
+    backgroundColor: '#262A32',
+    borderRadius: 24,
+    padding: 20,
+    width: '100%',
+    maxWidth: 380,
+  },
+  infoModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  infoModalBody: {
+    marginVertical: 14,
+  },
+  infoModalCloseBtn: {
+    backgroundColor: '#E25822',
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoModalCloseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
   friendModalCard: {
-    backgroundColor: '#C8B6FF', // Soft pastel lavender modal card
+    backgroundColor: '#E8D5C4',
     borderRadius: 28,
     padding: 20,
     width: '100%',
@@ -1458,7 +1521,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },

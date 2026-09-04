@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
           {activeUsername.toUpperCase()}
         </Text>
         <View style={styles.statusRow}>
-          <Flame size={12} color="#E2F163" style={{ marginRight: 3 }} />
+          <Flame size={12} color="#E8D5C4" style={{ marginRight: 3 }} />
           <Text style={styles.subtitleText}>Fitness Freak</Text>
         </View>
       </View>
@@ -73,7 +73,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   const defaultRightAction = (
     <View style={styles.onlinePillBadge}>
-      <View style={styles.onlineDotIndicator} />
       <Text style={styles.onlineCountText}>{displayOnlineCount}</Text>
     </View>
   );
@@ -94,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   leftSlot: {
     flex: 1,
@@ -157,10 +156,10 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#E2F163', // Neon lime online dot
+    backgroundColor: '#E25822',
   },
   onlineCountText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.5,

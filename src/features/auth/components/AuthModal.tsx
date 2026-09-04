@@ -246,7 +246,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                 disabled={resending}
               >
                 {resending ? (
-                  <ActivityIndicator color="#E2F163" size="small" />
+                  <ActivityIndicator color="#E8D5C4" size="small" />
                 ) : (
                   <Text style={styles.resendButtonText}>Resend Verification Email</Text>
                 )}
@@ -268,7 +268,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, onUserCh
                         disabled={fetchingUsername}
                       >
                         {fetchingUsername ? (
-                          <ActivityIndicator size="small" color="#E2F163" />
+                          <ActivityIndicator size="small" color="#E8D5C4" />
                         ) : (
                           <Text style={styles.randomizeBtnText}>⚡ Randomize</Text>
                         )}
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#E2F163',
+    borderColor: '#E8D5C4',
   },
   userNameText: {
     color: '#FFFFFF',
@@ -430,23 +430,23 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(226, 241, 99, 0.12)',
+    backgroundColor: 'rgba(232, 213, 196, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.25)',
+    borderColor: 'rgba(232, 213, 196, 0.25)',
     marginBottom: 18,
   },
   greenDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
     marginRight: 6,
   },
   statusBadgeText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -494,15 +494,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   randomizeBtn: {
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(232, 213, 196, 0.15)',
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.3)',
+    borderColor: 'rgba(232, 213, 196, 0.3)',
   },
   randomizeBtnText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -517,12 +517,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   primaryActionButton: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
     paddingVertical: 15,
     borderRadius: 26,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#E2F163',
+    shadowColor: '#E8D5C4',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   switchModeHighlight: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontWeight: '800',
   },
   verifyContainer: {
@@ -556,9 +556,9 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(226, 241, 99, 0.14)',
+    backgroundColor: 'rgba(232, 213, 196, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.35)',
+    borderColor: 'rgba(232, 213, 196, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   verifyHighlightEmail: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontWeight: '800',
   },
   resendButton: {

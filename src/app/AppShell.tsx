@@ -305,7 +305,7 @@ export default function AppShell() {
           <View style={styles.incomingInviteOverlay}>
             <View style={styles.incomingInviteCard}>
               <View style={styles.incomingBadgePill}>
-                <Swords size={13} color="#E2F163" />
+                <Swords size={13} color="#E8D5C4" />
                 <Text style={styles.incomingBadgeText}>INCOMING 1V1 DUEL</Text>
               </View>
 
@@ -324,7 +324,7 @@ export default function AppShell() {
               </Text>
               <Text style={styles.incomingChallengeText}>
                 has challenged you to a 1v1{' '}
-                <Text style={{ color: '#E2F163', fontWeight: '900' }}>
+                <Text style={{ color: '#E8D5C4', fontWeight: '900' }}>
                   {incomingInvite.exerciseName}
                 </Text>{' '}
                 {incomingInvite.mode === 'faceoff' ? 'Live Camera Faceoff' : 'Score Duel'}!
@@ -360,7 +360,7 @@ export default function AppShell() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   matchWaitingOverlay: {
     position: 'absolute',
@@ -451,17 +451,17 @@ const styles = StyleSheet.create({
   incomingBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(226, 241, 99, 0.12)',
+    backgroundColor: 'rgba(232, 213, 196, 0.15)',
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.35)',
+    borderColor: 'rgba(232, 213, 196, 0.35)',
     gap: 6,
     marginBottom: 16,
   },
   incomingBadgeText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.8,
@@ -514,10 +514,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
     borderRadius: 18,
     paddingVertical: 14,
-    shadowColor: '#E2F163',
+    shadowColor: '#E8D5C4',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,

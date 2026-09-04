@@ -95,8 +95,8 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#E2F163"
-            colors={['#E2F163', '#C8B6FF']}
+            tintColor="#E8D5C4"
+            colors={['#E8D5C4', '#C8B6FF']}
           />
         }
       >
@@ -142,7 +142,7 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
         {/* Loading Indicator */}
         {isLoading && exercisesList.length === 0 ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#E2F163" />
+            <ActivityIndicator size="large" color="#E8D5C4" />
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         ) : filteredExercises.length === 0 ? (
@@ -154,7 +154,7 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
         ) : (
           /* 100% DYNAMIC WORKOUT PLAN CARDS FETCHED FROM SUPABASE */
           filteredExercises.map((exercise, index) => {
-            const defaultPalettes = ['#C8B6FF', '#FFD6E0', '#E2F163', '#C8B6FF', '#FFD6E0'];
+            const defaultPalettes = ['#C8B6FF', '#FFD6E0', '#E25822', '#354394', '#FFD6E0'];
             const cardBg = exercise.bg_theme || defaultPalettes[index % defaultPalettes.length];
             const count = queueCounts[exercise.id] || 0;
             const duration = exercise.duration_mins || (index % 2 === 0 ? 32 : 25);
@@ -228,7 +228,7 @@ export const ExercisesScreen: React.FC<ExercisesScreenProps> = ({
 const styles = StyleSheet.create({
   exercisesScreenContainer: {
     flex: 1,
-    backgroundColor: '#0C0F14',
+    backgroundColor: '#1A1C20',
   },
   mainScrollView: {
     flex: 1,
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   refreshHintText: {
-    color: '#E2F163',
+    color: '#E25822',
     fontSize: 11,
     fontWeight: '800',
   },

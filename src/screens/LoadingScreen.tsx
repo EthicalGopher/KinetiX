@@ -20,12 +20,12 @@ const QUOTES_API_URL = 'https://motivational-spark-api.vercel.app/api/quotes/ran
 const LOADING_ANIMATION = require('../../assets/Videoes/loading_animation.gif');
 
 const COLORS = {
-  background: '#0B0D12',
-  track: '#191D26',
+  background: '#1A1C20',
+  track: '#262A32',
   textPrimary: '#F2F3F5',
   textSecondary: '#8B909C',
   textTertiary: '#585D68',
-  accent: '#E2F163',
+  accent: '#E25822',
 };
 
 interface QuoteData {
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: 16,
-    backgroundColor: 'rgba(226, 241, 99, 0.15)',
+    backgroundColor: 'rgba(232, 213, 196, 0.15)',
     borderWidth: 1,
     borderColor: COLORS.accent,
   },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   subInfoText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 13,
     fontWeight: '700',
     textAlign: 'center',

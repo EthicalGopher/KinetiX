@@ -696,9 +696,9 @@ export const MatchCameraScreen: React.FC<MatchCameraScreenProps> = ({
 
         if (setupCount <= 3) {
           instructionText = 'GET READY';
-          instructionColor = '#E2F163';
-          instructionBg = 'rgba(226, 241, 99, 0.35)';
-          instructionBorder = '#E2F163';
+          instructionColor = '#E8D5C4';
+          instructionBg = 'rgba(232, 213, 196, 0.35)';
+          instructionBorder = '#E8D5C4';
         } else if (visibility >= 0.7) {
           instructionText = 'PERFECT';
           instructionColor = '#34D399'; // Emerald
@@ -951,9 +951,9 @@ const DraggableActionsWidget: React.FC<DraggableWidgetProps> = ({
 // ---------------------------------------------------------------------------
 // Scoreboard
 // ---------------------------------------------------------------------------
-const SELF_COLOR = '#E2F163'; // Neon lime from reference
+const SELF_COLOR = '#E8D5C4'; // Soft warm skin tone
 const OPPONENT_COLOR = '#C8B6FF'; // Pastel lavender from reference
-const WIN_COLOR = '#E2F163';
+const WIN_COLOR = '#E8D5C4';
 const LOSE_COLOR = '#FF6B6B';
 const DRAW_COLOR = '#C8B6FF';
 const NEUTRAL_TIMER_COLOR = '#FFFFFF';
@@ -1122,7 +1122,7 @@ const ScoreBoard: React.FC<{
                     isMe && styles.ffaLeaderboardRowMe,
                   ]}
                 >
-                  <Text style={[styles.ffaRankText, isTop && { color: '#E2F163' }, isMe && { color: '#E2F163' }]}>
+                  <Text style={[styles.ffaRankText, isTop && { color: '#E8D5C4' }, isMe && { color: '#E8D5C4' }]}>
                     #{idx + 1}
                   </Text>
 
@@ -1141,7 +1141,7 @@ const ScoreBoard: React.FC<{
                     <Text
                       style={[
                         styles.ffaPlayerScoreText,
-                        isMe ? { color: '#E2F163' } : isTop ? { color: '#E2F163' } : { color: '#FFFFFF' },
+                        isMe ? { color: '#E8D5C4' } : isTop ? { color: '#E8D5C4' } : { color: '#FFFFFF' },
                       ]}
                     >
                       {player.score}
@@ -1326,7 +1326,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
   },
   syncStatusDotReady: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
   },
   syncStatusText: {
     color: '#CBD5E1',
@@ -1349,16 +1349,16 @@ const styles = StyleSheet.create({
     borderRadius: 70,
     backgroundColor: 'rgba(12, 15, 20, 0.75)',
     borderWidth: 4,
-    borderColor: '#E2F163',
+    borderColor: '#E8D5C4',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#E2F163',
+    shadowColor: '#E8D5C4',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
   },
   countdownNumberText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 72,
     fontWeight: '900',
     lineHeight: 80,
@@ -1501,7 +1501,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#E2F163', // Neon lime dumbbell icon badge
+    backgroundColor: '#E8D5C4', // Soft warm skin tone dumbbell icon badge
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1527,7 +1527,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   challengeActionBtn: {
-    backgroundColor: '#E2F163', // Neon lime
+    backgroundColor: '#E8D5C4',
   },
   friendActionBtn: {
     backgroundColor: '#C8B6FF', // Soft lavender
@@ -1553,10 +1553,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1.5,
-    borderColor: '#E2F163',
+    borderColor: '#E8D5C4',
   },
   ffaMyStatsLabel: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1612,7 +1612,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   ffaLeaderboardHeading: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.6,
@@ -1635,9 +1635,9 @@ const styles = StyleSheet.create({
     marginVertical: 1,
   },
   ffaLeaderboardRowMe: {
-    backgroundColor: 'rgba(226, 241, 99, 0.14)',
+    backgroundColor: 'rgba(232, 213, 196, 0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(226, 241, 99, 0.3)',
+    borderColor: 'rgba(232, 213, 196, 0.3)',
   },
   ffaRankBadge: {
     width: 20,
@@ -1658,7 +1658,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   ffaPlayerUsernameMe: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontWeight: '900',
   },
   ffaPlayerUsernameTop: {

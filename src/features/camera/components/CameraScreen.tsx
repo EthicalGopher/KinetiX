@@ -124,30 +124,30 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
     }
     .state-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      background: rgba(226, 241, 99, 0.14); border: 1px solid rgba(226, 241, 99, 0.35);
+      background: rgba(232, 213, 196, 0.14); border: 1px solid rgba(232, 213, 196, 0.35);
       border-radius: 10px; padding: 3px 8px;
       transition: all 0.2s ease;
     }
     .state-dot {
-      width: 6px; height: 6px; border-radius: 50%; background: #E2F163;
-      box-shadow: 0 0 8px 1px #E2F163; transition: all 0.2s ease;
+      width: 6px; height: 6px; border-radius: 50%; background: #E8D5C4;
+      box-shadow: 0 0 8px 1px #E8D5C4; transition: all 0.2s ease;
     }
     .state-text {
-      font-size: 11.5px; font-weight: 900; letter-spacing: 0.04em; color: #E2F163;
+      font-size: 11.5px; font-weight: 900; letter-spacing: 0.04em; color: #E8D5C4;
       text-transform: uppercase; transition: color 0.2s ease;
     }
     .vis-box {
       display: flex; align-items: center; gap: 7px;
     }
     .vis-value {
-      font-size: 12px; font-weight: 800; color: #E2F163;
+      font-size: 12px; font-weight: 800; color: #E8D5C4;
     }
     .vis-track {
       width: 48px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12);
       overflow: hidden;
     }
     .vis-fill {
-      height: 100%; width: 0%; border-radius: 3px; background: #E2F163;
+      height: 100%; width: 0%; border-radius: 3px; background: #E8D5C4;
       transition: width 0.2s ease, background-color 0.2s ease;
     }
     #hud-hint {
@@ -157,7 +157,6 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
       max-width: 170px;
     }
   </style>
-
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 </head>
@@ -306,7 +305,7 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
 
     // ---------- HUD Rendering ----------
     const STATE_STYLE = {
-      TOP: { text: 'Standing ▲', color: '#E2F163', bg: 'rgba(226, 241, 99, 0.15)', border: 'rgba(226, 241, 99, 0.35)' },
+      TOP: { text: 'Standing ▲', color: '#E8D5C4', bg: 'rgba(232, 213, 196, 0.15)', border: 'rgba(232, 213, 196, 0.35)' },
       DOWN: { text: 'Moving ▼', color: '#C8B6FF', bg: 'rgba(200, 182, 255, 0.18)', border: 'rgba(200, 182, 255, 0.4)' },
       BOTTOM: { text: 'Target ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' },
       PERFECT: { text: 'Perfect Hold ✓', color: '#34D399', bg: 'rgba(52, 211, 153, 0.2)', border: 'rgba(52, 211, 153, 0.45)' },
@@ -338,7 +337,7 @@ export const getPoseHtmlBundle = (exercise: string = 'squats') => {
       const fillEl = document.getElementById('visibility-fill');
       const hintEl = document.getElementById('hud-hint');
       const pct = Math.round(value * 100);
-      const color = value >= 0.7 ? '#E2F163' : value >= 0.4 ? '#FBBF24' : '#F87171';
+      const color = value >= 0.7 ? '#E8D5C4' : value >= 0.4 ? '#FBBF24' : '#F87171';
       if (valueEl) {
         valueEl.textContent = pct + '%';
         valueEl.style.color = color;
@@ -920,7 +919,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       {/* Top HUD Header: Solo Exercise Name & Rep / Step Counter */}
       <View style={styles.topHudContainer} pointerEvents="none">
         <View style={styles.exerciseBadgePill}>
-          <Flame size={14} color="#E2F163" style={{ marginRight: 5 }} />
+          <Flame size={14} color="#E8D5C4" style={{ marginRight: 5 }} />
           <Text style={styles.exerciseBadgeText}>{exerciseName.toUpperCase()} SOLO</Text>
         </View>
 
@@ -1095,7 +1094,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   exerciseBadgeText: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.6,
@@ -1108,7 +1107,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderWidth: 1.5,
-    borderColor: '#E2F163',
+    borderColor: '#E8D5C4',
     gap: 8,
   },
   scoreBadgeLabel: {
@@ -1118,7 +1117,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   scoreBadgeNumber: {
-    color: '#E2F163',
+    color: '#E8D5C4',
     fontSize: 22,
     fontWeight: '900',
     lineHeight: 24,
@@ -1150,7 +1149,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1176,6 +1175,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   resetActionBtn: {
-    backgroundColor: '#E2F163',
+    backgroundColor: '#E8D5C4',
   },
 });
